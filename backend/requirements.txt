@@ -1,0 +1,26 @@
+# FastAPI Backend Requirements
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+
+# Image Processing
+opencv-python==4.8.1.78
+Pillow==10.1.0
+numpy==1.24.3
+
+# Machine Learning / Computer Vision
+torch==2.1.0
+torchvision==0.16.0
+ultralytics==8.0.200  # For YOLO
+detectron2 @ git+https://github.com/facebookresearch/detectron2.git
+
+# Additional utilities
+tqdm==4.66.1
+requests==2.31.0
+
+# Note: You'll need to install these separately or adjust paths:
+# - FastSAM model and weights
+# - OpenPose binaries
+# - Graphonomy repository
+# - Model weight files (.pt, .pkl files)

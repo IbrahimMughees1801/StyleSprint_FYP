@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_theme.dart';
 import '../models/product.dart';
 import '../main.dart';
+import '../widgets/virtual_tryon_dialog.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final int productId;
@@ -55,9 +56,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               SliverAppBar(
                 expandedHeight: MediaQuery.of(context).size.height * 0.5,
                 pinned: true,
-                backgroundColor: Colors.white,
+                backgroundColor: Theme.of(context).colorScheme.surface,
                 leading: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: AppTheme.gray900),
+                  icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
                   onPressed: widget.onBack,
                 ),
                 actions: [
@@ -107,7 +108,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 ],
                               ),
                               child: ElevatedButton.icon(
-                                onPressed: () => widget.onNavigate(AppScreen.tryon),
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => VirtualTryOnDialog(
+                                      productImageUrl: product.image,
+                                      productName: product.name,
+                                    ),
+                                  );
+                                },
                                 icon: const Icon(Icons.auto_awesome, color: Colors.white),
                                 label: const Text(
                                   'Try This On',

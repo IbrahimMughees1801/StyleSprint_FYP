@@ -45,7 +45,7 @@ class StorePartners extends StatelessWidget {
                 child: Container(
                   width: 80,
                   decoration: BoxDecoration(
-                    color: AppTheme.gray100,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(

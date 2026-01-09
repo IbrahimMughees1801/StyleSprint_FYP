@@ -77,8 +77,9 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: AppTheme.gray50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           CustomScrollView(
@@ -86,21 +87,21 @@ class _CartScreenState extends State<CartScreen> {
               // Header
               SliverAppBar(
                 pinned: true,
-                backgroundColor: Colors.white,
+                backgroundColor: Theme.of(context).colorScheme.surface,
                 leading: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: AppTheme.gray900),
+                  icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
                   onPressed: widget.onBack,
                 ),
                 title: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Shopping Cart',
-                      style: TextStyle(color: AppTheme.gray900, fontSize: 20),
+                      style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 20),
                     ),
                     Text(
                       '${_cartItems.length} items',
-                      style: const TextStyle(color: AppTheme.gray500, fontSize: 14),
+                      style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 14),
                     ),
                   ],
                 ),
@@ -138,7 +139,7 @@ class _CartScreenState extends State<CartScreen> {
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -226,7 +227,7 @@ class _CartScreenState extends State<CartScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -247,6 +248,16 @@ class _CartScreenState extends State<CartScreen> {
               height: 96,
               fit: BoxFit.cover,
               placeholder: (context, url) => Container(color: AppTheme.gray100),
+              errorWidget: (context, url, error) => Container(
+                width: 96,
+                height: 96,
+                color: AppTheme.gray100,
+                child: const Icon(
+                  Icons.shopping_bag_outlined,
+                  color: AppTheme.gray400,
+                  size: 32,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -350,7 +361,7 @@ class _CartScreenState extends State<CartScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(

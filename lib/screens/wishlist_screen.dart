@@ -51,24 +51,24 @@ class _WishlistScreenState extends State<WishlistScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.gray50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.gray900),
+          icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
           onPressed: widget.onBack,
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'My Wishlist',
-              style: TextStyle(color: AppTheme.gray900, fontSize: 20),
+              style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 20),
             ),
             Text(
               '${_wishlistItems.length} items',
-              style: const TextStyle(color: AppTheme.gray500, fontSize: 14),
+              style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 14),
             ),
           ],
         ),
@@ -171,7 +171,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
@@ -193,6 +193,16 @@ class _WishlistScreenState extends State<WishlistScreen> {
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
                   color: AppTheme.gray100,
+                ),
+                errorWidget: (context, url, error) => Container(
+                  width: 100,
+                  height: 100,
+                  color: AppTheme.gray100,
+                  child: const Icon(
+                    Icons.checkroom,
+                    color: AppTheme.gray400,
+                    size: 40,
+                  ),
                 ),
               ),
             ),

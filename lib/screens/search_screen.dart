@@ -85,7 +85,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.gray50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -105,12 +105,12 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildSearchBar() {
     return Container(
       padding: const EdgeInsets.all(20),
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       child: Row(
         children: [
           if (widget.onBack != null) ...[
             IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppTheme.gray900),
+              icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
               onPressed: widget.onBack,
             ),
             const SizedBox(width: 8),

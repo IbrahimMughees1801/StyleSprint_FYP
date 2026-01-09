@@ -21,7 +21,7 @@ class Header extends StatelessWidget {
             ),
             child: IconButton(
               icon: const Icon(Icons.menu),
-              onPressed: () {},
+              onPressed: () => onNavigate(AppScreen.profile),
             ),
           ),
           const Spacer(),

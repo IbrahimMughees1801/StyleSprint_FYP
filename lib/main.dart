@@ -26,8 +26,15 @@ void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  static ThemeMode _themeMode = ThemeMode.light;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +42,15 @@ class MyApp extends StatelessWidget {
       title: 'Fashion Store',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const AppNavigator(),
+      darkTheme: AppTheme.darkTheme,
+      themeMode: _themeMode,
+      home: AppNavigator(
+        onThemeChange: (mode) {
+          setState(() {
+            _themeMode = mode;
+          });
+        },
+      ),
     );
   }
 }
@@ -57,7 +72,9 @@ enum AppScreen {
 }
 
 class AppNavigator extends StatefulWidget {
-  const AppNavigator({super.key});
+  final Function(ThemeMode) onThemeChange;
+
+  const AppNavigator({super.key, required this.onThemeChange});
 
   @override
   State<AppNavigator> createState() => _AppNavigatorState();
@@ -125,6 +142,7 @@ class _AppNavigatorState extends State<AppNavigator> {
           onBack: () => _navigateTo(AppScreen.home),
           onSignOut: () => _navigateTo(AppScreen.signin),
           onNavigate: _navigateTo,
+          onThemeChange: widget.onThemeChange,
         );
       case AppScreen.tryon:
         return VirtualTryOnScreen(

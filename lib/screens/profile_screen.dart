@@ -2,22 +2,32 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../main.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final VoidCallback onBack;
   final VoidCallback onSignOut;
   final Function(AppScreen)? onNavigate;
+  final Function(ThemeMode)? onThemeChange;
 
   const ProfileScreen({
     super.key,
     required this.onBack,
     required this.onSignOut,
     this.onNavigate,
+    this.onThemeChange,
   });
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isDarkMode = false;
+
+  @override
   Widget build(BuildContext context) {
+    _isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: AppTheme.gray50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -61,7 +71,7 @@ class ProfileScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           IconButton(
-                            onPressed: onBack,
+                            onPressed: widget.onBack,
                             icon: const Icon(Icons.arrow_back, color: Colors.white),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -113,7 +123,7 @@ class ProfileScreen extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
@@ -147,7 +157,7 @@ class ProfileScreen extends StatelessWidget {
                     description: 'Track and view your orders',
                     color: AppTheme.blue600,
                     bgColor: AppTheme.blue600.withOpacity(0.1),
-                    onTap: () => onNavigate?.call(AppScreen.orderHistory),
+                    onTap: () => widget.onNavigate?.call(AppScreen.orderHistory),
                   ),
                   const SizedBox(height: 12),
                   _buildMenuItem(
@@ -177,6 +187,8 @@ class ProfileScreen extends StatelessWidget {
                     onTap: () {},
                   ),
                   const SizedBox(height: 12),
+                  _buildThemeToggle(),
+                  const SizedBox(height: 12),
                   _buildMenuItem(
                     icon: Icons.settings_outlined,
                     label: 'Settings',
@@ -201,7 +213,7 @@ class ProfileScreen extends StatelessWidget {
                     description: 'Log out from your account',
                     color: AppTheme.red600,
                     bgColor: AppTheme.red600.withOpacity(0.1),
-                    onTap: onSignOut,
+                    onTap: widget.onSignOut,
                   ),
                   const SizedBox(height: 24),
                   const Text(
@@ -257,7 +269,7 @@ class ProfileScreen extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -304,6 +316,72 @@ class ProfileScreen extends StatelessWidget {
             const Icon(Icons.chevron_right, color: AppTheme.gray400),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildThemeToggle() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppTheme.purple600.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              _isDarkMode ? Icons.dark_mode : Icons.light_mode,
+              color: AppTheme.purple600,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Dark Mode',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _isDarkMode ? 'Switch to light theme' : 'Switch to dark theme',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.gray500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _isDarkMode,
+            onChanged: (value) {
+              widget.onThemeChange?.call(
+                value ? ThemeMode.dark : ThemeMode.light,
+              );
+            },
+            activeColor: AppTheme.purple600,
+          ),
+        ],
       ),
     );
   }

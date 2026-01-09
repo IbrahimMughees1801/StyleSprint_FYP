@@ -169,17 +169,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.gray50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.gray900),
+          icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
           onPressed: widget.onBack,
         ),
-        title: const Text(
+        title: Text(
           'Checkout',
-          style: TextStyle(color: AppTheme.gray900, fontSize: 20),
+          style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 20),
         ),
       ),
       body: Column(
