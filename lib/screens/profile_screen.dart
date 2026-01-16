@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../main.dart';
+import '../services/firebase_auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -22,6 +23,45 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isDarkMode = false;
+  final _authService = FirebaseAuthService();
+
+  Future<void> _handleSignOut() async {
+    final shouldSignOut = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSignOut == true) {
+      try {
+        await _authService.signOut();
+        if (mounted) {
+          widget.onSignOut();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error signing out: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,9 +132,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
-                            'John Doe',
-                            style: TextStyle(
+                          Text(
+                            _authService.currentUser?.displayName ?? 'User',
+                            style: const TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -102,7 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'john.doe@email.com',
+                            _authService.currentUser?.email ?? 'user@email.com',
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.white.withOpacity(0.9),
@@ -213,7 +253,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     description: 'Log out from your account',
                     color: AppTheme.red600,
                     bgColor: AppTheme.red600.withOpacity(0.1),
-                    onTap: widget.onSignOut,
+                    onTap: _handleSignOut,
                   ),
                   const SizedBox(height: 24),
                   const Text(

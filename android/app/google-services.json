@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "550254977862",
+    "project_id": "fyp-stylesprint",
+    "storage_bucket": "fyp-stylesprint.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:550254977862:android:21f5f4be0bff03f81f3b47",
+        "android_client_info": {
+          "package_name": "com.example.fyp_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbNFeH6MDKay7thwMiAcKCvKaDX1LRvpk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

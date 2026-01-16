@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/signin_screen.dart';
@@ -14,9 +16,16 @@ import 'screens/search_screen.dart';
 import 'screens/order_history_screen.dart';
 import 'screens/checkout_screen.dart';
 import 'screens/order_tracking_screen.dart';
+import 'services/firebase_auth_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase with generated options
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -84,9 +93,43 @@ class _AppNavigatorState extends State<AppNavigator> {
   AppScreen _currentScreen = AppScreen.onboarding;
   int? _selectedProductId;
   String? _selectedOrderId;
+  final _authService = FirebaseAuthService();
+  bool _hasSeenOnboarding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthState();
+  }
+
+  void _checkAuthState() {
+    // Listen to auth state changes
+    _authService.authStateChanges.listen((user) {
+      if (mounted) {
+        setState(() {
+          if (user != null) {
+            // User is signed in, navigate to home
+            _currentScreen = AppScreen.home;
+          } else if (_hasSeenOnboarding) {
+            // User signed out, go to sign in
+            _currentScreen = AppScreen.signin;
+          }
+        });
+      }
+    });
+
+    // Check if user is already logged in
+    if (_authService.currentUser != null) {
+      _currentScreen = AppScreen.home;
+      _hasSeenOnboarding = true;
+    }
+  }
 
   void _navigateTo(AppScreen screen) {
     setState(() {
+      if (screen == AppScreen.home || screen == AppScreen.signin || screen == AppScreen.signup) {
+        _hasSeenOnboarding = true;
+      }
       _currentScreen = screen;
     });
   }
