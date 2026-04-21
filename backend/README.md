@@ -1,5 +1,19 @@
 # Backend - Virtual Try-On API
 
+## 🚀 Quick Start (Current Working Version)
+
+**Use This**: `python api_server_simple.py` ✅  
+**Skip This**: `api_server.py` (needs ML models + has issues)
+
+```bash
+pip install -r requirements_simple.txt
+python api_server_simple.py
+```
+
+---
+
+## About
+
 FastAPI-based REST API for virtual try-on processing using multiple ML models.
 
 ## Directory Structure

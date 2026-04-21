@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_theme.dart';
-import '../models/product.dart';
+import '../models/product_photo.dart';
+import '../services/supabase_products_service.dart';
 
 class WishlistScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -18,12 +19,38 @@ class WishlistScreen extends StatefulWidget {
 }
 
 class _WishlistScreenState extends State<WishlistScreen> {
-  List<Product> _wishlistItems = [
-    sampleProducts[0],
-    sampleProducts[1],
-    sampleProducts[3],
-    sampleProducts[5],
-  ];
+  final SupabaseProductsService _productsService = SupabaseProductsService();
+  List<ProductPhoto> _wishlistItems = [];
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWishlist();
+  }
+
+  Future<void> _loadWishlist() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final items = await _productsService.fetchProducts();
+      if (!mounted) return;
+      setState(() {
+        _wishlistItems = items.take(4).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Failed to load wishlist: $e';
+        _isLoading = false;
+      });
+    }
+  }
 
   void _removeFromWishlist(int productId) {
     setState(() {
@@ -80,22 +107,32 @@ class _WishlistScreenState extends State<WishlistScreen> {
             ),
         ],
       ),
-      body: _wishlistItems.isEmpty
-          ? _buildEmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: _wishlistItems.length,
-              itemBuilder: (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _buildWishlistItem(_wishlistItems[index]),
-                );
-              },
-            ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: AppTheme.red500),
+                  ),
+                )
+              : _wishlistItems.isEmpty
+                  ? _buildEmptyState()
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(20),
+                      itemCount: _wishlistItems.length,
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _buildWishlistItem(_wishlistItems[index]),
+                        );
+                      },
+                    ),
     );
   }
 
   Widget _buildEmptyState() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -105,22 +142,22 @@ class _WishlistScreenState extends State<WishlistScreen> {
             Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: AppTheme.gray100,
+                color: isDarkMode ? AppTheme.gray800 : AppTheme.gray100,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.favorite_border,
                 size: 64,
-                color: AppTheme.gray400,
+                color: isDarkMode ? AppTheme.gray400 : AppTheme.gray400,
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Your Wishlist is Empty',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: AppTheme.gray900,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),
             const SizedBox(height: 12),
@@ -129,7 +166,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
-                color: AppTheme.gray600,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
                 height: 1.5,
               ),
             ),
@@ -165,7 +202,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
     );
   }
 
-  Widget _buildWishlistItem(Product product) {
+  Widget _buildWishlistItem(ProductPhoto product) {
     return GestureDetector(
       onTap: () => widget.onProductClick(product.id),
       child: Container(
@@ -187,7 +224,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: CachedNetworkImage(
-                imageUrl: product.image,
+                imageUrl: product.imageUrl,
                 width: 100,
                 height: 100,
                 fit: BoxFit.cover,
@@ -213,19 +250,19 @@ class _WishlistScreenState extends State<WishlistScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    product.store,
-                    style: const TextStyle(
+                    'StyleSprint',
+                    style: TextStyle(
                       fontSize: 12,
-                      color: AppTheme.gray500,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     product.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.gray900,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -236,10 +273,11 @@ class _WishlistScreenState extends State<WishlistScreen> {
                       const Icon(Icons.star, size: 14, color: AppTheme.yellow400),
                       const SizedBox(width: 4),
                       Text(
-                        product.rating.toString(),
-                        style: const TextStyle(
+                        '4.7',
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
                         ),
                       ),
                     ],
@@ -248,24 +286,13 @@ class _WishlistScreenState extends State<WishlistScreen> {
                   Row(
                     children: [
                       Text(
-                        product.price,
-                        style: const TextStyle(
+                        '\$49.99',
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.gray900,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                         ),
                       ),
-                      if (product.originalPrice != null) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          product.originalPrice!,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppTheme.gray400,
-                            decoration: TextDecoration.lineThrough,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ],

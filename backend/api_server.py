@@ -14,13 +14,23 @@ import base64
 from io import BytesIO
 from PIL import Image
 
-# Import your existing models
-from models.yolo import YOLODetector  
-from models.SegmentationSam2 import FastSAMInference 
-from models.DensePose import DensePoseRunner
-from models.OpenPose import OpenPoseRunner
-from models.ParseAgnostic import GraphonomyInference
-from models.helper import process_image, get_im_parse_agnostic
+# Import simplified try-on (works without ML models)
+from simple_tryon import advanced_overlay_tryon
+
+# Import ML models (optional - only if models folder exists)
+try:
+    from models.yolo import YOLODetector  
+    from models.SegmentationSam2 import FastSAMInference 
+    from models.DensePose import DensePoseRunner
+    from models.OpenPose import OpenPoseRunner
+    from models.ParseAgnostic import GraphonomyInference
+    from models.helper import process_image, get_im_parse_agnostic
+    ML_MODELS_AVAILABLE = True
+    print("✓ ML models loaded successfully")
+except ImportError as e:
+    ML_MODELS_AVAILABLE = False
+    print(f"⚠ ML models not available: {e}")
+    print("→ Using simplified overlay mode")
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -38,13 +48,13 @@ app.add_middleware(
 # Configuration - Update these paths to your actual model paths
 CONFIG = {
     # Stage 1: Preprocessing models
-    "yolo_weights": r"C:\Users\FAST\VITON\weights\best.pt",
-    "fastsam_model": r"C:\Users\FAST\VITON\weights\FastSAM-s.pt",
+    "yolo_weights": r"C:\Users\muhdi\Desktop\fyp_app\weights\best.pt",  # ✅ Updated to local path
+    "fastsam_model": r"C:\Users\muhdi\Desktop\fyp_app\weights\FastSAM-s.pt",
     "densepose_cfg": r"C:\Users\FAST\pls\detectron2\projects\DensePose\configs\densepose_rcnn_R_50_FPN_s1x.yaml",
-    "densepose_weights": r"C:\Users\FAST\VITON\weights\model_final_162be9.pkl",
+    "densepose_weights": r"C:\Users\muhdi\Desktop\fyp_app\weights\model_final_162be9.pkl",
     "openpose_root": r"C:\Users\FAST\Downloads\openpose-1.7.0-binaries-win64-gpu-python3.7-flir-3d_recommended\openpose",
     "graphonomy_repo": r"C:\Users\FAST\graph\Graphonomy",
-    "graphonomy_weights": r"C:\Users\FAST\VITON\weights\inference.pth",
+    "graphonomy_weights": r"C:\Users\muhdi\Desktop\fyp_app\weights\inference.pth",
     
     # Stage 2: Warping (PF-AFN)
     "warping_script": r"C:\Users\FAST\Try\PF-AFN\PF-AFN_test\eval_PBAFN_viton.py",
@@ -452,13 +462,60 @@ def process_virtual_tryon(person_image_path: str, cloth_image_path: str, session
         }
 
 
+def simple_process_tryon(person_path: str, cloth_path: str, session_id: str) -> dict:
+    """
+    Simplified virtual try-on using image overlay
+    Works immediately without ML models
+    """
+    try:
+        print(f"[Simplified Mode] Processing session {session_id}")
+        
+        # Create output directory
+        output_dir = os.path.join(CONFIG["final_output_dir"], "result")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Output path
+        output_path = os.path.join(output_dir, f"{session_id}_result.jpg")
+        
+        # Run the overlay
+        success = advanced_overlay_tryon(person_path, cloth_path, output_path)
+        
+        if success:
+            print(f"✓ Simplified try-on complete: {output_path}")
+            return {
+                "success": True,
+                "result_path": output_path,
+                "session_id": session_id,
+                "mode": "simplified_overlay"
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Overlay processing failed",
+                "session_id": session_id
+            } - use simplified version if ML models not available
+        if ML_MODELS_AVAILABLE:
+            result = process_virtual_tryon(temp_person_path, temp_cloth_path, session_id)
+        else:
+            result = simple_process
+    except Exception as e:
+        print(f"Error in simplified processing: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "session_id": session_id
+        }
+
+
 @app.get("/")
 def root():
     """Health check endpoint"""
     return {
         "status": "running",
         "service": "Virtual Try-On API",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "mode": "ML Pipeline" if ML_MODELS_AVAILABLE else "Simplified Overlay",
+        "ml_models_available": ML_MODELS_AVAILABLE
     }
 
 
@@ -483,8 +540,11 @@ async def upload_images(
         with open(temp_cloth_path, "wb") as f:
             f.write(await cloth_image.read())
         
-        # Process the images
-        result = process_virtual_tryon(temp_person_path, temp_cloth_path, session_id)
+        # Process the images - use simplified version if ML models not available
+        if ML_MODELS_AVAILABLE:
+            result = process_virtual_tryon(temp_person_path, temp_cloth_path, session_id)
+        else:
+            result = simple_process_tryon(temp_person_path, temp_cloth_path, session_id)
         
         if result["success"]:
             return TryOnResponse(
@@ -518,8 +578,11 @@ async def process_base64_images(request: TryOnRequest):
             if not save_base64_image(request.cloth_image_base64, temp_cloth_path):
                 raise HTTPException(status_code=400, detail="Invalid cloth image")
         
-        # Process the images
-        result = process_virtual_tryon(temp_person_path, temp_cloth_path, request.session_id)
+        # Process the images - use simplified version if ML models not available
+        if ML_MODELS_AVAILABLE:
+            result = process_virtual_tryon(temp_person_path, temp_cloth_path, request.session_id)
+        else:
+            result = simple_process_tryon(temp_person_path, temp_cloth_path, request.session_id)
         
         if result["success"]:
             return TryOnResponse(
@@ -536,7 +599,17 @@ async def process_base64_images(request: TryOnRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+Check for simplified result (JPG)
+    simple_result_path = os.path.join(
+        CONFIG["final_output_dir"],
+        "result",
+        f"{session_id}_result.jpg"
+    )
+    
+    if os.path.exists(simple_result_path):
+        return FileResponse(simple_result_path, media_type="image/jpeg")
+    
+    # Check for final diffusion result (PNG)
 @app.get("/api/tryon/result/{session_id}")
 async def get_result(session_id: str):
     """
@@ -563,19 +636,36 @@ async def get_result(session_id: str):
     
     # Fallback: Return agnostic parse (preprocessing output)
     result_path = os.path.join(
-        CONFIG["temp_dir"],
-        "image-parse-agnostic-v3.2",
-        f"{session_id}_person.png"
+        CONFIG["simplified result (JPG)
+    simple_result_path = os.path.join(
+        CONFIG["final_output_dir"],
+        "result",
+        f"{session_id}_result.jpg"
     )
     
-    if os.path.exists(result_path):
-        return FileResponse(result_path, media_type="image/png")
+    if os.path.exists(simple_result_path):
+        return {
+            "status": "completed",
+            "session_id": session_id,
+            "result_url": f"/api/tryon/result/{session_id}",
+            "stage": "overlay_complete",
+            "mode": "simplified"
+        }
     
-    raise HTTPException(status_code=404, detail="Result not found")
-
-
-@app.get("/api/tryon/status/{session_id}")
-def check_status(session_id: str):
+    # Check for final diffusion result (PNG)
+    final_result_path = os.path.join(
+        CONFIG["final_output_dir"],
+        "result",
+        f"{session_id}_result.png"
+    )
+    
+    if os.path.exists(final_result_path):
+        return {
+            "status": "completed",
+            "session_id": session_id,
+            "result_url": f"/api/tryon/result/{session_id}",
+            "stage": "diffusion_complete",
+            "mode": "ml_pipelin
     """
     Check the processing status of a session
     """

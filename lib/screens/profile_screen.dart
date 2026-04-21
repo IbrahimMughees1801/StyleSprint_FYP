@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../main.dart';
 import '../services/firebase_auth_service.dart';
+import '../widgets/bottom_nav.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -68,36 +69,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Header with gradient
-            Container(
-              decoration: const BoxDecoration(
-                gradient: AppTheme.purplePinkGradient,
-              ),
-              child: Stack(
-                children: [
-                  // Decorative elements
-                  Positioned(
-                    top: 40,
-                    right: 40,
-                    child: Container(
-                      width: 128,
-                      height: 128,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
+      body: Stack(
+        children: [
+          // Scrollable content
+          SingleChildScrollView(
+            child: Column(
+              children: [
+                // Header with gradient
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: AppTheme.purplePinkGradient,
                   ),
-                  Positioned(
-                    bottom: 0,
-                    left: 40,
-                    child: Container(
-                      width: 160,
-                      height: 160,
-                      decoration: BoxDecoration(
+                  child: Stack(
+                    children: [
+                      // Decorative elements
+                      Positioned(
+                        top: 40,
+                        right: 40,
+                        child: Container(
+                          width: 128,
+                          height: 128,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        left: 40,
+                        child: Container(
+                          width: 160,
+                          height: 160,
+                          decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
@@ -110,13 +114,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          IconButton(
-                            onPressed: widget.onBack,
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                          const SizedBox(height: 24),
+                          // Remove back button since we have bottom nav
+                          const SizedBox(height: 0),
                           Container(
                             width: 96,
                             height: 96,
@@ -263,12 +262,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontSize: 12,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 100), // Space for bottom navigation
                 ],
               ),
             ),
           ],
         ),
+      ),
+          // Bottom Navigation
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: BottomNav(onNavigate: widget.onNavigate ?? (_) {}),
+          ),
+        ],
       ),
     );
   }
@@ -278,18 +286,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
-            color: AppTheme.gray900,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: AppTheme.gray500,
+            color: Theme.of(context).textTheme.bodySmall?.color,
           ),
         ),
       ],
@@ -337,17 +345,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     description,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: AppTheme.gray500,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
                     ),
                   ),
                 ],
@@ -364,7 +373,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -394,19 +403,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Dark Mode',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   _isDarkMode ? 'Switch to light theme' : 'Switch to dark theme',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppTheme.gray500,
+                    color: Theme.of(context).textTheme.bodySmall?.color,
                   ),
                 ),
               ],

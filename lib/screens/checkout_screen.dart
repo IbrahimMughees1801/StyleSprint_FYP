@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_theme.dart';
 import '../models/product.dart';
+import '../models/product_photo.dart';
+import '../services/supabase_products_service.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -21,6 +23,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   int _currentStep = 0;
   int _selectedAddressIndex = 0;
   int _selectedPaymentIndex = 0;
+
+  final SupabaseProductsService _productsService = SupabaseProductsService();
+  bool _isLoadingCart = false;
+  String? _cartError;
 
   final List<Map<String, String>> _addresses = [
     {
@@ -60,28 +66,52 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     },
   ];
 
-  late final List<CartItem> _cartItems = [
-    CartItem(
-      id: sampleProducts[0].id,
-      name: sampleProducts[0].name,
-      store: sampleProducts[0].store,
-      price: double.parse(sampleProducts[0].price.replaceAll('\$', '')),
-      image: sampleProducts[0].image,
+  final List<CartItem> _cartItems = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCartItems();
+  }
+
+  Future<void> _loadCartItems() async {
+    setState(() {
+      _isLoadingCart = true;
+      _cartError = null;
+    });
+
+    try {
+      final items = await _productsService.fetchProducts();
+      if (!mounted) return;
+
+      _cartItems
+        ..clear()
+        ..addAll(items.take(2).map((product) => _toCartItem(product)));
+
+      setState(() {
+        _isLoadingCart = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _cartError = 'Failed to load cart items: $e';
+        _isLoadingCart = false;
+      });
+    }
+  }
+
+  CartItem _toCartItem(ProductPhoto product) {
+    return CartItem(
+      id: product.id,
+      name: product.name,
+      store: 'StyleSprint',
+      price: 49.99,
+      image: product.imageUrl,
       size: 'M',
       color: 'Black',
       quantity: 1,
-    ),
-    CartItem(
-      id: sampleProducts[1].id,
-      name: sampleProducts[1].name,
-      store: sampleProducts[1].store,
-      price: double.parse(sampleProducts[1].price.replaceAll('\$', '')),
-      image: sampleProducts[1].image,
-      size: 'L',
-      color: 'Blue',
-      quantity: 1,
-    ),
-  ];
+    );
+  }
 
   double get _subtotal {
     return _cartItems.fold(
@@ -168,6 +198,43 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingCart) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_cartError != null) {
+      return Scaffold(
+        body: Center(
+          child: Text(
+            _cartError!,
+            style: const TextStyle(color: AppTheme.red500),
+          ),
+        ),
+      );
+    }
+
+    if (_cartItems.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
+            onPressed: widget.onBack,
+          ),
+          title: Text(
+            'Checkout',
+            style: TextStyle(
+              color: Theme.of(context).textTheme.titleLarge?.color,
+              fontSize: 20,
+            ),
+          ),
+        ),
+        body: const Center(child: Text('Your cart is empty.')),
+      );
+    }
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_theme.dart';
-import '../models/product.dart';
 import '../main.dart';
 import '../widgets/virtual_tryon_dialog.dart';
+import '../models/product_photo.dart';
+import '../services/supabase_products_service.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final int productId;
@@ -34,19 +35,65 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _selectedColorIndex = 0;
   bool _isFavorite = false;
 
-  late Product product;
+  final SupabaseProductsService _productsService = SupabaseProductsService();
+  ProductPhoto? _product;
+  bool _isLoadingProduct = false;
+  String? _productError;
+
+  final String _displayStore = 'StyleSprint';
+  final String _displayPrice = '\$49.99';
+  final String? _displayOriginalPrice = null;
+  final double _displayRating = 4.7;
+  final bool _displayTryOn = true;
 
   @override
   void initState() {
     super.initState();
-    product = sampleProducts.firstWhere(
-      (p) => p.id == widget.productId,
-      orElse: () => sampleProducts[0],
-    );
+    _loadProduct();
+  }
+
+  Future<void> _loadProduct() async {
+    setState(() {
+      _isLoadingProduct = true;
+      _productError = null;
+    });
+
+    try {
+      final item = await _productsService.fetchProductById(widget.productId);
+      if (!mounted) return;
+
+      setState(() {
+        _product = item;
+        _isLoadingProduct = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _productError = 'Failed to load product: $e';
+        _isLoadingProduct = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingProduct) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_productError != null) {
+      return Scaffold(
+        body: Center(
+          child: Text(
+            _productError!,
+            style: const TextStyle(color: AppTheme.red500),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Stack(
         children: [
@@ -82,14 +129,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
-                      CachedNetworkImage(
-                        imageUrl: product.image,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          color: AppTheme.gray100,
-                        ),
-                      ),
-                      if (product.virtualTryOn)
+                      if (_product != null)
+                        CachedNetworkImage(
+                          imageUrl: _product!.imageUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            color: AppTheme.gray100,
+                          ),
+                        )
+                      else
+                        Container(color: AppTheme.gray100),
+                      if (_displayTryOn && _product != null)
                         Positioned(
                           bottom: 24,
                           left: 0,
@@ -112,8 +162,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   showDialog(
                                     context: context,
                                     builder: (context) => VirtualTryOnDialog(
-                                      productImageUrl: product.image,
-                                      productName: product.name,
+                                      productImageUrl: _product!.imageUrl,
+                                      productName: _product!.name,
                                     ),
                                   );
                                 },
@@ -151,7 +201,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            product.store,
+                            _displayStore,
                             style: const TextStyle(
                               color: AppTheme.gray500,
                               fontSize: 14,
@@ -162,7 +212,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               const Icon(Icons.star, size: 16, color: AppTheme.yellow400),
                               const SizedBox(width: 4),
                               Text(
-                                product.rating.toString(),
+                                _displayRating.toString(),
                                 style: const TextStyle(fontWeight: FontWeight.w500),
                               ),
                               const SizedBox(width: 4),
@@ -177,7 +227,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       const SizedBox(height: 12),
                       // Product name
                       Text(
-                        product.name,
+                        _product?.name ?? 'Product',
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
@@ -187,17 +237,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       Row(
                         children: [
                           Text(
-                            product.price,
+                            _displayPrice,
                             style: const TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
                               color: AppTheme.gray900,
                             ),
                           ),
-                          if (product.originalPrice != null) ...[
+                          if (_displayOriginalPrice != null) ...[
                             const SizedBox(width: 12),
                             Text(
-                              product.originalPrice!,
+                              _displayOriginalPrice!,
                               style: const TextStyle(
                                 fontSize: 18,
                                 color: AppTheme.gray400,
@@ -320,7 +370,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Premium quality ${product.name.toLowerCase()} made with high-quality materials. Features a modern fit and comfortable design perfect for everyday wear. Available in multiple colors and sizes to suit your style.',
+                        'Premium quality ${( _product?.name ?? 'product').toLowerCase()} made with high-quality materials. Features a modern fit and comfortable design perfect for everyday wear. Available in multiple colors and sizes to suit your style.',
                         style: const TextStyle(
                           color: AppTheme.gray600,
                           height: 1.6,

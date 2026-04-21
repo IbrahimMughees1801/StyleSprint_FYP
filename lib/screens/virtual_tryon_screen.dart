@@ -1,5 +1,13 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:io';
+
+import 'package:camera/camera.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../models/product_photo.dart';
+import '../services/supabase_products_service.dart';
 import '../theme/app_theme.dart';
 
 class VirtualTryOnScreen extends StatefulWidget {
@@ -12,26 +20,195 @@ class VirtualTryOnScreen extends StatefulWidget {
 }
 
 class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
+  final ImagePicker _picker = ImagePicker();
+  final SupabaseProductsService _productsService = SupabaseProductsService();
+  List<ProductPhoto> _products = [];
+  bool _isLoadingProducts = false;
+  String? _productsError;
+
+  CameraController? _cameraController;
+  List<CameraDescription> _availableCameras = [];
+  File? _capturedImage;
   bool _cameraActive = false;
+  bool _isCameraInitializing = false;
+  CameraLensDirection _preferredLensDirection = CameraLensDirection.front;
   int? _selectedProductId;
 
-  final List<Map<String, dynamic>> _quickSelectProducts = [
-    {
-      'id': 1,
-      'name': 'White Hoodie',
-      'image': 'https://images.unsplash.com/photo-1711387718409-a05f62a3dc39?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
-    },
-    {
-      'id': 2,
-      'name': 'Summer Dress',
-      'image': 'https://images.unsplash.com/photo-1610202631408-fa6ba0f39ca3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
-    },
-    {
-      'id': 3,
-      'name': 'Winter Jacket',
-      'image': 'https://images.unsplash.com/photo-1706765779494-2705542ebe74?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadAvailableCameras();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() {
+      _isLoadingProducts = true;
+      _productsError = null;
+    });
+
+    try {
+      final items = await _productsService.fetchProducts();
+      if (!mounted) return;
+
+      setState(() {
+        _products = items;
+        _isLoadingProducts = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _productsError = 'Failed to load products: $e';
+        _isLoadingProducts = false;
+      });
+    }
+  }
+
+  Future<void> _loadAvailableCameras() async {
+    try {
+      _availableCameras = await availableCameras();
+    } catch (_) {
+      _availableCameras = [];
+    }
+  }
+
+  Future<void> _openCamera({CameraLensDirection? preferredLensDirection}) async {
+    if (_isCameraInitializing) return;
+
+    setState(() {
+      _isCameraInitializing = true;
+    });
+
+    try {
+      if (_availableCameras.isEmpty) {
+        await _loadAvailableCameras();
+      }
+
+      if (_availableCameras.isEmpty) {
+        throw Exception('No camera was found on this device.');
+      }
+
+      final direction = preferredLensDirection ?? _preferredLensDirection;
+
+      final camera = _availableCameras.firstWhere(
+        (c) => c.lensDirection == direction,
+        orElse: () => _availableCameras.first,
+      );
+
+      final controller = CameraController(
+        camera,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
+      await controller.initialize();
+
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      await _cameraController?.dispose();
+
+      setState(() {
+        _cameraController = controller;
+        _capturedImage = null;
+        _cameraActive = true;
+        _preferredLensDirection = camera.lensDirection;
+        _isCameraInitializing = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCameraInitializing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open camera: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (_isCameraInitializing || _availableCameras.length < 2) return;
+
+    final nextDirection = _preferredLensDirection == CameraLensDirection.front
+        ? CameraLensDirection.back
+        : CameraLensDirection.front;
+
+    await _cameraController?.dispose();
+    if (!mounted) return;
+
+    setState(() {
+      _cameraController = null;
+      _capturedImage = null;
+      _cameraActive = false;
+    });
+
+    await _openCamera(preferredLensDirection: nextDirection);
+  }
+
+  Future<void> _capturePhoto() async {
+    final controller = _cameraController;
+    if (controller == null || !controller.value.isInitialized) return;
+
+    try {
+      final photo = await controller.takePicture();
+      if (!mounted) return;
+
+      setState(() {
+        _capturedImage = File(photo.path);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Photo captured! Select a product to try on.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to capture photo: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    try {
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+
+      if (photo != null && mounted) {
+        setState(() {
+          _capturedImage = File(photo.path);
+          _cameraActive = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick image: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
 
   void _showTryOnOptions() {
     showDialog(
@@ -53,27 +230,22 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
             _buildOptionButton(
               icon: Icons.camera_alt,
               label: 'Open Camera',
-              description: 'Try on in real-time',
+              description: 'Open live camera preview',
               gradient: AppTheme.purplePinkGradient,
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                setState(() {
-                  _cameraActive = true;
-                });
+                await _openCamera();
               },
             ),
             const SizedBox(height: 12),
             _buildOptionButton(
               icon: Icons.photo_library,
-              label: 'Use Profile Photo',
-              description: 'Try on with your photo',
+              label: 'Choose from Gallery',
+              description: 'Select an existing photo',
               gradient: AppTheme.blueCyanGradient,
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                // For now, just activate camera - can be enhanced later
-                setState(() {
-                  _cameraActive = true;
-                });
+                await _pickFromGallery();
               },
             ),
           ],
@@ -139,14 +311,18 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   }
 
   @override
+  void dispose() {
+    unawaited(_cameraController?.dispose());
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Camera view or welcome screen
           if (!_cameraActive) _buildWelcomeScreen() else _buildCameraView(),
-          // Header
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -161,10 +337,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                         color: Colors.white.withOpacity(0.2),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: Colors.white,
-                      ),
+                      child: const Icon(Icons.arrow_back, color: Colors.white),
                     ),
                   ),
                   if (_cameraActive)
@@ -196,16 +369,15 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                         color: Colors.white.withOpacity(0.2),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.flip_camera_ios,
-                        color: Colors.white,
+                      child: GestureDetector(
+                        onTap: _showTryOnOptions,
+                        child: const Icon(Icons.refresh, color: Colors.white),
                       ),
                     ),
                 ],
               ),
             ),
           ),
-          // Bottom controls (only when camera active)
           if (_cameraActive) _buildBottomControls(),
         ],
       ),
@@ -224,16 +396,9 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
               decoration: BoxDecoration(
                 gradient: AppTheme.purplePinkGradient,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppTheme.purple600.withOpacity(0.3),
-                  width: 4,
-                ),
+                border: Border.all(color: AppTheme.purple600.withOpacity(0.3), width: 4),
               ),
-              child: const Icon(
-                Icons.camera_alt,
-                size: 96,
-                color: Colors.white,
-              ),
+              child: const Icon(Icons.camera_alt, size: 96, color: Colors.white),
             ),
             const SizedBox(height: 32),
             const Text(
@@ -260,13 +425,6 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
               decoration: BoxDecoration(
                 gradient: AppTheme.purplePinkGradient,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.purple600.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
               ),
               child: ElevatedButton(
                 onPressed: _showTryOnOptions,
@@ -274,9 +432,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
                 child: const Text(
                   'Start Camera',
@@ -298,90 +454,65 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Simulated camera feed
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppTheme.gray800, AppTheme.gray900],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+        if (_capturedImage != null)
+          Image.file(_capturedImage!, fit: BoxFit.cover)
+        else if (_cameraController != null && _cameraController!.value.isInitialized)
+          CameraPreview(_cameraController!)
+        else
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppTheme.gray800, AppTheme.gray900],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: Center(
+              child: _isCameraInitializing
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Icon(Icons.camera_alt, size: 72, color: AppTheme.purple600),
             ),
           ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 128,
-                  height: 128,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppTheme.purple600,
-                      width: 4,
-                      strokeAlign: BorderSide.strokeAlignOutside,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.camera_alt,
-                    size: 64,
-                    color: AppTheme.purple600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Camera feed would appear here',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Guide frame
         Center(
           child: Container(
             width: 256,
             height: 384,
             decoration: BoxDecoration(
-              border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 2,
-              ),
+              border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
               borderRadius: BorderRadius.circular(24),
             ),
           ),
         ),
-        // Product applied indicator
-        if (_selectedProductId != null)
+        if (_cameraController != null && _cameraController!.value.isInitialized)
           Positioned(
-            top: 100,
             left: 0,
             right: 0,
+            bottom: 120,
             child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppTheme.green600.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.auto_awesome, size: 20, color: Colors.white),
-                    SizedBox(width: 8),
-                    Text(
-                      'Product Applied',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+              child: GestureDetector(
+                onTap: _capturePhoto,
+                child: Container(
+                  width: 82,
+                  height: 82,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 5),
+                    color: AppTheme.purple600.withOpacity(0.85),
+                  ),
+                  child: const Icon(Icons.camera, color: Colors.white, size: 34),
                 ),
               ),
+            ),
+          ),
+        if (_cameraController != null && _cameraController!.value.isInitialized)
+          Positioned(
+            right: 20,
+            bottom: 120,
+            child: FloatingActionButton.small(
+              heroTag: 'swap-camera',
+              onPressed: _switchCamera,
+              backgroundColor: Colors.black.withOpacity(0.75),
+              child: const Icon(Icons.flip_camera_ios, color: Colors.white),
             ),
           ),
       ],
@@ -389,6 +520,16 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   }
 
   Widget _buildBottomControls() {
+    ProductPhoto? selectedProduct;
+    if (_selectedProductId != null) {
+      for (final product in _products) {
+        if (product.id == _selectedProductId) {
+          selectedProduct = product;
+          break;
+        }
+      }
+    }
+
     return Positioned(
       left: 0,
       right: 0,
@@ -406,7 +547,6 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Quick select products
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -419,68 +559,96 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  if (selectedProduct != null) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white.withOpacity(0.12)),
+                      ),
+                      child: Text(
+                        'Selected product: ${selectedProduct.name}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (_productsError != null) ...[
+                    Text(
+                      _productsError!,
+                      style: const TextStyle(color: AppTheme.red500, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   SizedBox(
                     height: 80,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _quickSelectProducts.length,
-                      itemBuilder: (context, index) {
-                        final product = _quickSelectProducts[index];
-                        final isSelected = _selectedProductId == product['id'];
-                        return Padding(
-                          padding: EdgeInsets.only(
-                            right: index < _quickSelectProducts.length - 1 ? 12 : 0,
-                          ),
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedProductId = product['id'];
-                              });
-                            },
-                            child: Container(
-                              width: 80,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? AppTheme.purple600
-                                      : Colors.white.withOpacity(0.3),
-                                  width: isSelected ? 3 : 2,
-                                ),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: CachedNetworkImage(
-                                  imageUrl: product['image'],
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
+                    child: _isLoadingProducts
+                        ? const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
+                          )
+                        : ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _products.length,
+                            itemBuilder: (context, index) {
+                              final product = _products[index];
+                              final isSelected = _selectedProductId == product.id;
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                  right: index < _products.length - 1 ? 12 : 0,
+                                ),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedProductId = product.id;
+                                    });
+                                  },
+                                  child: Container(
+                                    width: 80,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? AppTheme.purple600
+                                            : Colors.white.withOpacity(0.3),
+                                        width: isSelected ? 3 : 2,
+                                      ),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: CachedNetworkImage(
+                                        imageUrl: product.imageUrl,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 24),
-              // Action buttons
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {},
                       icon: const Icon(Icons.download, color: Colors.white),
-                      label: const Text(
-                        'Save Photo',
-                        style: TextStyle(color: Colors.white),
-                      ),
+                      label: const Text('Save Photo', style: TextStyle(color: Colors.white)),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                     ),
                   ),
@@ -494,17 +662,12 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                       child: ElevatedButton.icon(
                         onPressed: () {},
                         icon: const Icon(Icons.shopping_cart, color: Colors.white),
-                        label: const Text(
-                          'Add to Cart',
-                          style: TextStyle(color: Colors.white),
-                        ),
+                        label: const Text('Add to Cart', style: TextStyle(color: Colors.white)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                       ),
                     ),

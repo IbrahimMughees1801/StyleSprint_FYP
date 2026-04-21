@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_theme.dart';
-import '../models/product.dart';
+import '../models/product_photo.dart';
+import '../services/supabase_products_service.dart';
 
 class SearchScreen extends StatefulWidget {
   final Function(int) onProductClick;
@@ -19,6 +20,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final SupabaseProductsService _productsService = SupabaseProductsService();
   final List<String> _recentSearches = [
     'Summer dresses',
     'Nike sneakers',
@@ -34,13 +36,44 @@ class _SearchScreenState extends State<SearchScreen> {
     'Crop tops',
   ];
   
-  List<Product> _searchResults = [];
+  List<ProductPhoto> _allProducts = [];
+  List<ProductPhoto> _searchResults = [];
   bool _isSearching = false;
+  bool _isLoading = false;
+  String? _errorMessage;
   String _selectedCategory = 'All';
   String _sortBy = 'Relevance';
 
   final List<String> _categories = ['All', 'Men', 'Women', 'Kids', 'Accessories'];
   final List<String> _sortOptions = ['Relevance', 'Price: Low to High', 'Price: High to Low', 'Rating'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final items = await _productsService.fetchProducts();
+      if (!mounted) return;
+      setState(() {
+        _allProducts = items;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Failed to load products: $e';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -60,10 +93,8 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       _isSearching = true;
       // Simulate search - in real app, this would be an API call
-      _searchResults = sampleProducts.where((product) {
-        return product.name.toLowerCase().contains(query.toLowerCase()) ||
-               product.store.toLowerCase().contains(query.toLowerCase()) ||
-               product.category.toLowerCase().contains(query.toLowerCase());
+      _searchResults = _allProducts.where((product) {
+        return product.name.toLowerCase().contains(query.toLowerCase());
       }).toList();
     });
   }
@@ -218,6 +249,19 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildSearchResults() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Text(
+          _errorMessage!,
+          style: const TextStyle(color: AppTheme.red500),
+        ),
+      );
+    }
+
     if (_searchResults.isEmpty) {
       return Center(
         child: Column(
@@ -261,7 +305,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildProductCard(Product product) {
+  Widget _buildProductCard(ProductPhoto product) {
     return GestureDetector(
       onTap: () => widget.onProductClick(product.id),
       child: Container(
@@ -284,7 +328,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                   child: CachedNetworkImage(
-                    imageUrl: product.image,
+                    imageUrl: product.imageUrl,
                     height: 180,
                     width: double.infinity,
                     fit: BoxFit.cover,
@@ -293,32 +337,31 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   ),
                 ),
-                if (product.virtualTryOn)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.purplePinkGradient,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.view_in_ar, size: 12, color: Colors.white),
-                          SizedBox(width: 4),
-                          Text(
-                            'AR',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: AppTheme.purplePinkGradient,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.view_in_ar, size: 12, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'AR',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
+                ),
                 Positioned(
                   top: 8,
                   right: 8,
@@ -343,7 +386,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    product.store,
+                    'StyleSprint',
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppTheme.gray500,
@@ -366,7 +409,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       const Icon(Icons.star, size: 12, color: AppTheme.yellow400),
                       const SizedBox(width: 4),
                       Text(
-                        product.rating.toString(),
+                        '4.7',
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -376,7 +419,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    product.price,
+                    '\$49.99',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

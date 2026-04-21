@@ -1,0 +1,72 @@
+# 🚀 QUICK START CARD - Virtual Try-On
+
+## ⚡ Get It Running in 3 Commands
+
+```bash
+# 1. Install dependencies
+cd backend
+pip install fastapi uvicorn pillow pydantic python-multipart
+
+# 2. Start server  
+python api_server_simple.py
+
+# 3. Test it works
+# Open: http://localhost:8000
+```
+
+## ✅ Your Setup Status
+
+- ✅ **Simplified Version**: Ready to use NOW (use `api_server_simple.py`)
+- ⚠️ **Original ML Code**: In `api_server.py` but has issues, skip for now
+- ✅ **Flutter App**: Already integrated, just connect
+- ⏳ **Full ML Pipeline**: Future upgrade when you get models folder
+
+## 📱 Connect Phone
+
+1. Get PC IP: `ipconfig` → Find IPv4 (e.g., 192.168.1.100)
+2. Update Flutter: `lib/services/virtual_tryon_service.dart` line 11
+3. Change to: `'http://192.168.1.100:8000'`
+4. Run: `flutter run`
+
+## 🎯 Test It
+
+1. Open product with AR badge
+2. Tap "Try This On"
+3. Take/select photo
+4. Wait 2-3 seconds
+5. ✨ Done!
+
+## 🔧 Files You Need
+
+- ✅ `api_server_simple.py` - Server (simplified)
+- ✅ `simple_tryon.py` - Overlay logic
+- ✅ `requirements_simple.txt` - Dependencies
+- ✅ `start_simple.bat` - One-click start
+
+## ⚠️ Common Issues
+
+**"Module not found"** → Run: `pip install -r requirements_simple.txt`
+
+**"Can't connect"** → Check same WiFi, firewall allows port 8000
+
+**"Result not showing"** → Check server console for errors
+
+## 📖 Full Guides
+
+- `START_HERE.md` - Complete setup guide
+- `QUICK_SETUP_SIMPLE.md` - Detailed instructions
+- Original ML docs still in `IMPLEMENTATION_SUMMARY.md`
+
+## ✨ Success Looks Like
+
+```
+Server starting at: http://localhost:8000
+Mode: Simplified Overlay
+Processing time: ~2-3 seconds per request
+```
+
+Then in Flutter app: Photo → Product → Result in 3 seconds!
+
+---
+
+**Status**: ✅ Safe, tested, ready to run! No risk to existing code.

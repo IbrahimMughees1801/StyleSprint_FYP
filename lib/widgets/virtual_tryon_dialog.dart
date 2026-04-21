@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
 import '../services/virtual_tryon_service.dart';
 import '../models/tryon_result.dart';
@@ -29,6 +30,20 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
   String? _errorMessage;
   TryOnResult? _result;
   Uint8List? _resultImageBytes;
+
+  Future<File> _downloadProductImage(String url) async {
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to download product image');
+    }
+
+    final tempDir = Directory.systemTemp;
+    final file = File(
+      '${tempDir.path}/tryon_cloth_${DateTime.now().millisecondsSinceEpoch}.jpg',
+    );
+    await file.writeAsBytes(response.bodyBytes);
+    return file;
+  }
 
   Future<void> _pickImage() async {
     try {
@@ -74,11 +89,11 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
         throw Exception('Server is not available. Please make sure the backend is running.');
       }
 
-      // For now, we'll use a placeholder for the cloth image
-      // In production, you'd download the product image and use it
+      final clothImage = await _downloadProductImage(widget.productImageUrl);
+
       final result = await _tryOnService.uploadImages(
         personImage: _selectedPersonImage!,
-        clothImage: _selectedPersonImage!, // Replace with actual cloth image
+        clothImage: clothImage,
       );
 
       setState(() {

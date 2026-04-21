@@ -49,7 +49,7 @@ class HomeScreen extends StatelessWidget {
                     const StorePartners(),
                     const SizedBox(height: 32),
                     ProductGrid(onProductClick: onProductClick),
-                    const SizedBox(height: 100), // Space for bottom nav
+                    const SizedBox(height: 140), // Increased padding to prevent overflow on all screens
                   ]),
                 ),
               ),

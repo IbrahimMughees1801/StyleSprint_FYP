@@ -4,6 +4,14 @@
 
 A complete **Backend API + Flutter Integration** for Virtual Try-On functionality in your StyleSprint e-commerce app.
 
+## ✅ Current Status (Pre-Supabase)
+
+- Live camera preview is working in the try-on screen
+- Camera capture works; swap button is visible (front/back switching added)
+- Product selection is UI-only (no real overlay yet)
+- ML pipeline is not wired into the live camera flow
+- Next step is adding product photo data (Supabase Postgres + Storage)
+
 ## 📦 Files Created
 
 ### Backend (Python FastAPI)

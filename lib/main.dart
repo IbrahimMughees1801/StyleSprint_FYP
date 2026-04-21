@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'screens/onboarding_screen.dart';
@@ -17,6 +18,7 @@ import 'screens/order_history_screen.dart';
 import 'screens/checkout_screen.dart';
 import 'screens/order_tracking_screen.dart';
 import 'services/firebase_auth_service.dart';
+import 'services/supabase_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +26,11 @@ void main() async {
   // Initialize Firebase with generated options
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
   );
   
   SystemChrome.setSystemUIOverlayStyle(
