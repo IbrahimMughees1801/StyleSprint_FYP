@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Local ML artifacts
+/backend/third_party/
+/weights/
+
 # Symbolication related
 app.*.symbols
 

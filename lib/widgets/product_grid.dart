@@ -83,6 +83,14 @@ class _ProductGridState extends State<ProductGrid> {
               style: const TextStyle(color: AppTheme.red500),
             ),
           )
+        else if (_products.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'No products found in Supabase.',
+              style: TextStyle(color: AppTheme.gray600),
+            ),
+          )
         else
           GridView.builder(
             shrinkWrap: true,

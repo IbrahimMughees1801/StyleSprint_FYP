@@ -595,45 +595,52 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           )
-                        : ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _products.length,
-                            itemBuilder: (context, index) {
-                              final product = _products[index];
-                              final isSelected = _selectedProductId == product.id;
-                              return Padding(
-                                padding: EdgeInsets.only(
-                                  right: index < _products.length - 1 ? 12 : 0,
+                        : _products.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'No Supabase products yet.',
+                                  style: TextStyle(color: AppTheme.gray400, fontSize: 12),
                                 ),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedProductId = product.id;
-                                    });
-                                  },
-                                  child: Container(
-                                    width: 80,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? AppTheme.purple600
-                                            : Colors.white.withOpacity(0.3),
-                                        width: isSelected ? 3 : 2,
+                              )
+                            : ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _products.length,
+                                itemBuilder: (context, index) {
+                                  final product = _products[index];
+                                  final isSelected = _selectedProductId == product.id;
+                                  return Padding(
+                                    padding: EdgeInsets.only(
+                                      right: index < _products.length - 1 ? 12 : 0,
+                                    ),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedProductId = product.id;
+                                        });
+                                      },
+                                      child: Container(
+                                        width: 80,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? AppTheme.purple600
+                                                : Colors.white.withOpacity(0.3),
+                                            width: isSelected ? 3 : 2,
+                                          ),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(16),
+                                          child: CachedNetworkImage(
+                                            imageUrl: product.imageUrl,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(16),
-                                      child: CachedNetworkImage(
-                                        imageUrl: product.imageUrl,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                                  );
+                                },
+                              ),
                   ),
                 ],
               ),
