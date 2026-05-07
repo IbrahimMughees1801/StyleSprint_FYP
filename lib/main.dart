@@ -216,7 +216,7 @@ class _AppNavigatorState extends State<AppNavigator> {
       case AppScreen.checkout:
         return CheckoutScreen(
           onBack: () => _navigateTo(AppScreen.cart),
-          onOrderPlaced: () => _navigateTo(AppScreen.orderHistory),
+          onNavigate: _navigateTo,
         );
       case AppScreen.orderTracking:
         return OrderTrackingScreen(
