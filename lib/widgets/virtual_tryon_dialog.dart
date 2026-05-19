@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -25,24 +24,18 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
   final VirtualTryOnService _tryOnService = VirtualTryOnService();
   final ImagePicker _picker = ImagePicker();
 
-  File? _selectedPersonImage;
+  XFile? _selectedPersonImage;
+  Uint8List? _selectedPersonImageBytes;
   bool _isProcessing = false;
   String? _errorMessage;
-  TryOnResult? _result;
   Uint8List? _resultImageBytes;
 
-  Future<File> _downloadProductImage(String url) async {
+  Future<Uint8List> _downloadProductImage(String url) async {
     final response = await http.get(Uri.parse(url));
     if (response.statusCode != 200) {
       throw Exception('Failed to download product image');
     }
-
-    final tempDir = Directory.systemTemp;
-    final file = File(
-      '${tempDir.path}/tryon_cloth_${DateTime.now().millisecondsSinceEpoch}.jpg',
-    );
-    await file.writeAsBytes(response.bodyBytes);
-    return file;
+    return response.bodyBytes;
   }
 
   Future<void> _pickImage() async {
@@ -55,10 +48,11 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
       );
 
       if (image != null) {
+        final imageBytes = await image.readAsBytes();
         setState(() {
-          _selectedPersonImage = File(image.path);
+          _selectedPersonImage = image;
+          _selectedPersonImageBytes = imageBytes;
           _errorMessage = null;
-          _result = null;
           _resultImageBytes = null;
         });
       }
@@ -70,7 +64,7 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
   }
 
   Future<void> _processTryOn() async {
-    if (_selectedPersonImage == null) {
+    if (_selectedPersonImageBytes == null) {
       setState(() {
         _errorMessage = 'Please select your photo first';
       });
@@ -89,16 +83,12 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
         throw Exception('Server is not available. Please make sure the backend is running.');
       }
 
-      final clothImage = await _downloadProductImage(widget.productImageUrl);
+      final clothImageBytes = await _downloadProductImage(widget.productImageUrl);
 
-      final result = await _tryOnService.uploadImages(
-        personImage: _selectedPersonImage!,
-        clothImage: clothImage,
+      final result = await _tryOnService.processBase64Images(
+        personImageBytes: _selectedPersonImageBytes!,
+        clothImageBytes: clothImageBytes,
       );
-
-      setState(() {
-        _result = result;
-      });
 
       if (result.success && result.sessionId.isNotEmpty) {
         // Poll for completion
@@ -332,8 +322,8 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
                   onPressed: () {
                     setState(() {
                       _selectedPersonImage = null;
+                      _selectedPersonImageBytes = null;
                       _resultImageBytes = null;
-                      _result = null;
                     });
                   },
                   icon: const Icon(Icons.refresh),
@@ -374,8 +364,8 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
     if (_selectedPersonImage != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Image.file(
-          _selectedPersonImage!,
+        child: Image.memory(
+          _selectedPersonImageBytes!,
           fit: BoxFit.contain,
         ),
       );

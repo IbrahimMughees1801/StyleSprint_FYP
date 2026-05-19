@@ -36,6 +36,19 @@ migrate_working_dir/
 # Local ML artifacts
 /backend/third_party/
 /weights/
+/FINAL/
+/backend/FINAL/
+/backend/temp_uploads/
+/temp_uploads/
+/backend/fastsam_input/
+/backend/fastsam_output/
+/backend/*.jpg
+/backend/*.jpeg
+/backend/*.png
+/run_tryon_stage3_demo.py
+
+# Generated/alternate app drafts
+/Lenzo/
 
 # Symbolication related
 app.*.symbols

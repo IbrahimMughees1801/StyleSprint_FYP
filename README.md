@@ -1,16 +1,44 @@
-# fyp_app
+# StyleSprint FYP (fyp_app)
 
-A new Flutter project.
+AI-powered fashion e-commerce app with a 3-stage virtual try-on pipeline.
 
-## Getting Started
+## Highlights
 
-This project is a starting point for a Flutter application.
+- Flutter client with virtual try-on UI and API integration.
+- FastAPI backend with 3-stage ML pipeline:
+	1) Preprocess (YOLO, FastSAM, DensePose, OpenPose, Graphonomy)
+	2) Warping (PF-AFN)
+	3) Diffusion (DCI-VTON)
+- Local development supported on Windows.
 
-A few resources to get you started if this is your first Flutter project:
+## Repository Layout
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- Flutter app: `lib/`, `android/`, `ios/`
+- Backend: `backend/`
+- ML assets: `weights/`, `backend/third_party/`
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Quick Start (Flutter)
+
+```bash
+flutter pub get
+flutter run
+```
+
+## Quick Start (Backend)
+
+```bash
+cd backend
+python api_server.py
+```
+
+API docs: `http://localhost:8000/docs`
+
+## Notes
+
+- The Flutter app calls the backend at `http://localhost:8000` by default.
+	For a physical device, update the base URL to your PC's LAN IP in
+	`lib/services/virtual_tryon_service.dart`.
+- Stage 2 (PF-AFN) is wired locally; Stage 3 (DCI-VTON) is being finalized.
+
+See [backend/README.md](backend/README.md) for detailed backend setup and
+pipeline instructions.

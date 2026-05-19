@@ -1,20 +1,48 @@
 # Backend - Virtual Try-On API
 
-## 🚀 Quick Start (Current Working Version)
+FastAPI-based REST API for the 3-stage virtual try-on pipeline.
 
-**Use This**: `python api_server_simple.py` ✅  
-**Skip This**: `api_server.py` (needs ML models + has issues)
+## Quick Start (Current)
+
+From the repo root:
 
 ```bash
-pip install -r requirements_simple.txt
-python api_server_simple.py
+.\.venv\Scripts\python.exe -m uvicorn api_server:app --host 0.0.0.0 --port 8000 --app-dir backend
 ```
+
+API docs: `http://localhost:8000/docs`
+
+Default mode is the stable overlay API. It supports the Flutter upload,
+status, and result endpoints without starting the heavy ML stack.
+
+To intentionally test the full ML pipeline:
+
+```bash
+$env:API_PROCESSING_MODE="ml"
+.\.venv\Scripts\python.exe -m uvicorn api_server:app --host 0.0.0.0 --port 8000 --app-dir backend
+```
+
+Check ML readiness:
+
+```text
+http://localhost:8000/api/tryon/readiness
+```
+
+Optional faster diffusion smoke setting:
+
+```bash
+$env:API_DIFFUSION_STEPS="30"
+```
+
+Note: `api_server_simple.py` is still available as a lightweight overlay-only fallback.
 
 ---
 
-## About
+## Pipeline Overview
 
-FastAPI-based REST API for virtual try-on processing using multiple ML models.
+1) Preprocess (YOLO, FastSAM, DensePose, OpenPose, Graphonomy)
+2) Warping (PF-AFN)
+3) Diffusion (DCI-VTON)
 
 ## Directory Structure
 
@@ -22,35 +50,18 @@ FastAPI-based REST API for virtual try-on processing using multiple ML models.
 backend/
 ├── api_server.py           # Main FastAPI application
 ├── requirements.txt        # Python dependencies
-├── check_setup.py         # Setup verification script
-├── models/                # ML model wrappers (copy from friend's project)
-│   ├── __init__.py
-│   ├── yolo.py           # YOLO detector
-│   ├── SegmentationSam2.py
-│   ├── DensePose.py
-│   ├── OpenPose.py
-│   ├── ParseAgnostic.py
-│   └── helper.py
-├── temp_uploads/          # Temporary upload storage (auto-created)
-└── results/               # Processing results (auto-created)
+├── check_setup.py          # Setup verification script
+├── temp_uploads/           # Temporary upload storage (auto-created)
+└── results/                # Processing results (auto-created)
 ```
 
 ## Setup Steps
 
-### 1. Copy Models Folder
+### 1. ML Model Wrappers
 
-Copy the `models/` folder from your friend's project to this directory:
-
-```
-backend/
-└── models/
-    ├── yolo.py
-    ├── SegmentationSam2.py
-    ├── DensePose.py
-    ├── OpenPose.py
-    ├── ParseAgnostic.py
-    └── helper.py
-```
+The backend expects model wrapper modules under `backend/models/`.
+If that folder is missing, copy the wrapper scripts there (yolo, FastSAM,
+DensePose, OpenPose, Graphonomy, helper).
 
 ### 2. Install Dependencies
 
@@ -152,6 +163,8 @@ DELETE /api/tryon/cleanup/{session_id}
 4. **OpenPose** - Extract body keypoints
 5. **Graphonomy** - Human parsing (body part segmentation)
 6. **Parse Agnostic** - Generate agnostic representation
+7. **PF-AFN Warping** - Warp cloth to person
+8. **DCI-VTON Diffusion** - Final photorealistic output
 
 ## Configuration
 
@@ -166,10 +179,25 @@ CONFIG = {
     "openpose_root": "path/to/openpose",
     "graphonomy_repo": "path/to/Graphonomy",
     "graphonomy_weights": "path/to/inference.pth",
+    "warping_script": "path/to/PF-AFN_test/test.py",
+    "warp_checkpoint": "path/to/warp_model_final.pth",
+    "diffusion_script": "path/to/DCI-VTON/test.py",
+    "diffusion_checkpoint": "path/to/viton512*.ckpt",
+    "diffusion_config": "path/to/configs/viton512.yaml",
+    "diffusion_workdir": "path/to/DCI-VTON-Virtual-Try-On",
+    "python_pfafen": "path/to/pfafen-gpu-clean/python.exe",
+    "python_dci_vton": "path/to/dci-vton/python.exe",
     "temp_dir": "./temp_uploads",
     "output_dir": "./results"
 }
 ```
+
+## Current Local Status (Windows)
+
+- Stage 1 sanity checks passed (YOLO, OpenPose, DensePose, FastSAM).
+- Stage 2 PF-AFN working with GPU env `pfafen-gpu-clean`.
+- Stage 3 repo cloned; VGG checkpoint in `DCI-VTON-Virtual-Try-On/models/vgg/`.
+- Stage 3 diffusion checkpoint still pending download.
 
 ## Environment Variables
 

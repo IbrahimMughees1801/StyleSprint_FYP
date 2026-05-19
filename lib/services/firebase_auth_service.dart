@@ -21,11 +21,8 @@ class FirebaseAuthService {
   }) async {
     try {
       // Create user in Firebase Auth
-      final UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       // Update display name
       await userCredential.user?.updateDisplayName(fullName);
@@ -38,10 +35,15 @@ class FirebaseAuthService {
           fullName: fullName,
         );
 
-        await _firestore
-            .collection('users')
-            .doc(userCredential.user!.uid)
-            .set(userModel.toFirestore());
+        try {
+          await _firestore
+              .collection('users')
+              .doc(userCredential.user!.uid)
+              .set(userModel.toFirestore(), SetOptions(merge: true));
+        } catch (_) {
+          // The auth account is already created; do not block sign-up on a
+          // profile sync issue such as a temporary Firestore rules problem.
+        }
       }
 
       return userCredential;
@@ -58,20 +60,23 @@ class FirebaseAuthService {
     required String password,
   }) async {
     try {
-      final UserCredential userCredential =
-          await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final UserCredential userCredential = await _auth
+          .signInWithEmailAndPassword(email: email, password: password);
 
       // Update last login timestamp
       if (userCredential.user != null) {
-        await _firestore
-            .collection('users')
-            .doc(userCredential.user!.uid)
-            .update({
-          'lastLogin': FieldValue.serverTimestamp(),
-        });
+        try {
+          await _firestore
+              .collection('users')
+              .doc(userCredential.user!.uid)
+              .set({
+                'email': userCredential.user!.email ?? email,
+                'fullName': userCredential.user!.displayName ?? 'User',
+                'lastLogin': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+        } catch (_) {
+          // Firebase Auth sign-in succeeded; profile metadata can sync later.
+        }
       }
 
       return userCredential;
@@ -116,10 +121,7 @@ class FirebaseAuthService {
   }
 
   /// Update user profile
-  Future<void> updateUserProfile({
-    String? fullName,
-    String? photoUrl,
-  }) async {
+  Future<void> updateUserProfile({String? fullName, String? photoUrl}) async {
     try {
       final user = currentUser;
       if (user == null) throw 'No user logged in';
@@ -163,16 +165,6 @@ class FirebaseAuthService {
       throw _handleAuthException(e);
     } catch (e) {
       throw 'Failed to delete account';
-    }
-  }
-
-  /// Check if email is already in use
-  Future<bool> isEmailRegistered(String email) async {
-    try {
-      final methods = await _auth.fetchSignInMethodsForEmail(email);
-      return methods.isNotEmpty;
-    } catch (e) {
-      return false;
     }
   }
 

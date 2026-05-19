@@ -1,13 +1,15 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 import '../models/product_photo.dart';
 import '../services/supabase_products_service.dart';
+import '../services/virtual_tryon_service.dart';
 import '../theme/app_theme.dart';
 
 class VirtualTryOnScreen extends StatefulWidget {
@@ -22,15 +24,18 @@ class VirtualTryOnScreen extends StatefulWidget {
 class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   final ImagePicker _picker = ImagePicker();
   final SupabaseProductsService _productsService = SupabaseProductsService();
+  final VirtualTryOnService _tryOnService = VirtualTryOnService();
   List<ProductPhoto> _products = [];
   bool _isLoadingProducts = false;
   String? _productsError;
 
   CameraController? _cameraController;
   List<CameraDescription> _availableCameras = [];
-  File? _capturedImage;
+  Uint8List? _capturedImageBytes;
+  Uint8List? _resultImageBytes;
   bool _cameraActive = false;
   bool _isCameraInitializing = false;
+  bool _isProcessingTryOn = false;
   CameraLensDirection _preferredLensDirection = CameraLensDirection.front;
   int? _selectedProductId;
 
@@ -75,6 +80,11 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   Future<void> _openCamera({CameraLensDirection? preferredLensDirection}) async {
     if (_isCameraInitializing) return;
 
+    if (kIsWeb) {
+      await _pickFromCamera();
+      return;
+    }
+
     setState(() {
       _isCameraInitializing = true;
     });
@@ -113,7 +123,8 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
 
       setState(() {
         _cameraController = controller;
-        _capturedImage = null;
+        _capturedImageBytes = null;
+        _resultImageBytes = null;
         _cameraActive = true;
         _preferredLensDirection = camera.lensDirection;
         _isCameraInitializing = false;
@@ -146,7 +157,8 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
 
     setState(() {
       _cameraController = null;
-      _capturedImage = null;
+      _capturedImageBytes = null;
+      _resultImageBytes = null;
       _cameraActive = false;
     });
 
@@ -159,10 +171,12 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
 
     try {
       final photo = await controller.takePicture();
+      final photoBytes = await photo.readAsBytes();
       if (!mounted) return;
 
       setState(() {
-        _capturedImage = File(photo.path);
+        _capturedImageBytes = photoBytes;
+        _resultImageBytes = null;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -184,6 +198,36 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     }
   }
 
+  Future<void> _pickFromCamera() async {
+    try {
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 768,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (photo != null && mounted) {
+        final photoBytes = await photo.readAsBytes();
+        setState(() {
+          _capturedImageBytes = photoBytes;
+          _resultImageBytes = null;
+          _cameraActive = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open camera: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _pickFromGallery() async {
     try {
       final XFile? photo = await _picker.pickImage(
@@ -192,8 +236,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       );
 
       if (photo != null && mounted) {
+        final photoBytes = await photo.readAsBytes();
         setState(() {
-          _capturedImage = File(photo.path);
+          _capturedImageBytes = photoBytes;
+          _resultImageBytes = null;
           _cameraActive = true;
         });
       }
@@ -207,6 +253,81 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _processSelectedTryOn() async {
+    if (_capturedImageBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Capture or select your photo first.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    ProductPhoto? selectedProduct;
+    for (final product in _products) {
+      if (product.id == _selectedProductId) {
+        selectedProduct = product;
+        break;
+      }
+    }
+
+    if (selectedProduct == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select a product first.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isProcessingTryOn = true;
+    });
+
+    try {
+      final isAvailable = await _tryOnService.isServerAvailable();
+      if (!isAvailable) {
+        throw Exception('Backend is not running at ${VirtualTryOnService.baseUrl}.');
+      }
+
+      final clothResponse = await http.get(Uri.parse(selectedProduct.imageUrl));
+      if (clothResponse.statusCode != 200) {
+        throw Exception('Failed to download selected product image.');
+      }
+
+      final result = await _tryOnService.processBase64Images(
+        personImageBytes: _capturedImageBytes!,
+        clothImageBytes: clothResponse.bodyBytes,
+      );
+
+      if (!result.success || result.sessionId.isEmpty) {
+        throw Exception(result.message);
+      }
+
+      final resultBytes = await _tryOnService.getResultImage(result.sessionId);
+      if (!mounted) return;
+
+      setState(() {
+        _resultImageBytes = resultBytes;
+        _isProcessingTryOn = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isProcessingTryOn = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Try-on failed: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -313,6 +434,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   @override
   void dispose() {
     unawaited(_cameraController?.dispose());
+    _tryOnService.dispose();
     super.dispose();
   }
 
@@ -454,8 +576,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (_capturedImage != null)
-          Image.file(_capturedImage!, fit: BoxFit.cover)
+        if (_resultImageBytes != null)
+          Image.memory(_resultImageBytes!, fit: BoxFit.cover)
+        else if (_capturedImageBytes != null)
+          Image.memory(_capturedImageBytes!, fit: BoxFit.cover)
         else if (_cameraController != null && _cameraController!.value.isInitialized)
           CameraPreview(_cameraController!)
         else
@@ -649,9 +773,18 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {},
+                      onPressed: _resultImageBytes == null
+                          ? null
+                          : () {
+                              setState(() {
+                                _capturedImageBytes = null;
+                                _resultImageBytes = null;
+                                _selectedProductId = null;
+                                _cameraActive = false;
+                              });
+                            },
                       icon: const Icon(Icons.download, color: Colors.white),
-                      label: const Text('Save Photo', style: TextStyle(color: Colors.white)),
+                      label: const Text('Reset', style: TextStyle(color: Colors.white)),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         side: BorderSide(color: Colors.white.withOpacity(0.2)),
@@ -667,9 +800,21 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.shopping_cart, color: Colors.white),
-                        label: const Text('Add to Cart', style: TextStyle(color: Colors.white)),
+                        onPressed: _isProcessingTryOn ? null : _processSelectedTryOn,
+                        icon: _isProcessingTryOn
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.auto_awesome, color: Colors.white),
+                        label: Text(
+                          _isProcessingTryOn ? 'Trying On...' : 'Try On',
+                          style: const TextStyle(color: Colors.white),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,

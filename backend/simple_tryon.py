@@ -61,7 +61,7 @@ def simple_overlay_tryon(person_image_path: str, cloth_image_path: str, output_p
         result_rgb = result.convert('RGB')
         result_rgb.save(output_path, 'JPEG', quality=95)
         
-        print(f"✓ Simple try-on result saved to: {output_path}")
+        print(f"Simple try-on result saved to: {output_path}")
         return True
         
     except Exception as e:
@@ -137,7 +137,7 @@ def advanced_overlay_tryon(person_image_path: str, cloth_image_path: str, output
         final_rgb = final.convert('RGB')
         final_rgb.save(output_path, 'JPEG', quality=95)
         
-        print(f"✓ Advanced overlay result saved to: {output_path}")
+        print(f"Advanced overlay result saved to: {output_path}")
         return True
         
     except Exception as e:

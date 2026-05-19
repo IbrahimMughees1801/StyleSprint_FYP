@@ -14,6 +14,17 @@ Successfully developed a comprehensive **e-commerce fashion application** with c
 
 ---
 
+## Update (May 12, 2026)
+
+- Stage 1 preprocessing sanity checks completed on CPU (YOLO, OpenPose, DensePose, FastSAM).
+- Stage 2 PF-AFN is fully functional with GPU env `pfafen-gpu-clean` and local test outputs.
+- DCI-VTON repo cloned to `backend/third_party/DCI-VTON-Virtual-Try-On`.
+- VGG checkpoint placed at `backend/third_party/DCI-VTON-Virtual-Try-On/models/vgg/vgg19_conv.pth`.
+- Stage 3 diffusion checkpoint download pending.
+- Flutter app is wired to backend endpoints via `lib/services/virtual_tryon_service.dart` (baseUrl uses localhost).
+
+---
+
 ## Work Completed
 
 ## Phase 1: Core App Development ✅
@@ -124,16 +135,15 @@ Developed a complete REST API server that wraps a 3-stage ML pipeline:
 - **Graphonomy** - Performs human body part segmentation
 - **Parse Agnostic** - Creates clothing-agnostic human representation
 
-#### Stage 2: Cloth Warping (NEW)
+#### Stage 2: Cloth Warping (PF-AFN)
 - **PF-AFN Model** - Warps clothing to match person's body pose
 - Generates warped cloth and corresponding masks
-- Adjusts for body shape and position
+- GPU environment ready (`pfafen-gpu-clean`) and local sanity test outputs confirmed
 
-#### Stage 3: Diffusion Model (NEW)
+#### Stage 3: Diffusion Model (DCI-VTON)
 - **DCI-VTON** - Generates photorealistic final try-on result
-- Adds natural lighting and shadows
-- Creates realistic fabric wrinkles and draping
-- Produces high-quality 512x512 output images
+- Repo cloned; VGG checkpoint in place
+- Diffusion checkpoint download pending (viton512*.ckpt)
 
 #### API Endpoints Implemented
 ```
@@ -233,43 +243,23 @@ FastAPI Backend (Python)
 
 ### ⏳ Pending Setup Requirements
 
-1. **Copy Models Folder**
-   - Source: Friend's project `models/` directory
-   - Destination: `backend/models/`
-   - Contains: yolo.py, SegmentationSam2.py, DensePose.py, OpenPose.py, ParseAgnostic.py, helper.py
+1. **Place ML Wrapper Modules**
+  - Ensure `backend/models/` exists with: yolo.py, SegmentationSam2.py,
+    DensePose.py, OpenPose.py, ParseAgnostic.py, helper.py
 
-2. **Clone External Repositories**
-   ```bash
-   git clone https://github.com/geyuying/PF-AFN
-   git clone https://github.com/bcmi/DCI-VTON-Virtual-Try-On
-   ```
+2. **Download DCI-VTON Diffusion Checkpoint**
+  - Example: `viton512.ckpt` or `viton512_v2.ckpt`
+  - Config is already available in `DCI-VTON-Virtual-Try-On/configs/viton512.yaml`
 
-3. **Download Model Checkpoints**
-   - YOLO weights: `best.pt`
-   - FastSAM: `FastSAM-s.pt`
-   - DensePose: `model_final_162be9.pkl`
-   - Graphonomy: `inference.pth`
-   - PF-AFN: `warp_viton.pth` (NEW)
-   - DCI-VTON: `viton512_v2.ckpt` + `viton512_v2.yaml` (NEW)
+3. **Create Stage 3 Conda Environment**
+  - Use `backend/third_party/DCI-VTON-Virtual-Try-On/environment.yaml`
 
-4. **Create Conda Environments**
-   ```bash
-   conda create -n torch112 python=3.8      # For Stage 1
-   conda create -n dci-vton python=3.8      # For Stages 2 & 3
-   ```
+4. **Wire Stage 3 Paths**
+  - Update `backend/api_server.py` to point to the DCI-VTON script,
+    checkpoint, config, and workdir
 
-5. **Install Dependencies**
-   ```bash
-   # In torch112 environment
-   pip install -r backend/requirements.txt
-   
-   # In dci-vton environment
-   pip install PF-AFN and DCI-VTON dependencies
-   ```
-
-6. **Configure Paths**
-   - Update `CONFIG` dictionary in `backend/api_server.py` (lines 28-50)
-   - Update `baseUrl` in `lib/services/virtual_tryon_service.dart` (line 11)
+5. **Flutter Base URL (Device Testing)**
+  - Update `lib/services/virtual_tryon_service.dart` baseUrl to your LAN IP
 
 ---
 
@@ -409,20 +399,26 @@ FastAPI Backend (Python)
 
 ---
 
-## Current Status (January 16, 2026)
+## Current Status (May 12, 2026)
 
 ### ✅ Completed
 - Full UI/UX implementation
 - Firebase Authentication (Email/Password)
 - User profile management
 - Session management
-- Virtual Try-On API (backend ready)
-- Complete documentation
+- Stage 1 preprocessing sanity checks (CPU)
+- Stage 2 PF-AFN warping sanity check (GPU)
+- Backend + Flutter integration wired to API endpoints
+- Documentation set
 
 ### 🚧 In Progress
+- Stage 3 DCI-VTON diffusion setup (checkpoint + env)
 - Product database design and implementation
 
 ### ⏳ Pending
+- DCI-VTON diffusion checkpoint download
+- Stage 3 wiring in backend config
+- Full end-to-end pipeline run
 - Real product data integration
 - Payment processing
 - Cloud deployment

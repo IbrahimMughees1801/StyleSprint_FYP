@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
@@ -9,45 +8,10 @@ class VirtualTryOnService {
   // Update this to your backend server URL
   // For local development: http://localhost:8000
   // For production: https://your-backend-domain.com
-  static const String baseUrl = 'http://localhost:8000';
+  static const String baseUrl = 'http://127.0.0.1:8000';
   
   final http.Client _client = http.Client();
   final _uuid = const Uuid();
-
-  /// Upload person and clothing images as files
-  Future<TryOnResult> uploadImages({
-    required File personImage,
-    required File clothImage,
-  }) async {
-    try {
-      final uri = Uri.parse('$baseUrl/api/tryon/upload');
-      final request = http.MultipartRequest('POST', uri);
-
-      // Add person image
-      request.files.add(await http.MultipartFile.fromPath(
-        'person_image',
-        personImage.path,
-      ));
-
-      // Add cloth image
-      request.files.add(await http.MultipartFile.fromPath(
-        'cloth_image',
-        clothImage.path,
-      ));
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return TryOnResult.fromJson(data);
-      } else {
-        throw Exception('Failed to process images: ${response.body}');
-      }
-    } catch (e) {
-      throw Exception('Error uploading images: $e');
-    }
-  }
 
   /// Process images using base64 encoding (alternative method)
   Future<TryOnResult> processBase64Images({
