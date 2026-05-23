@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
 
 class VirtualTryOnCard extends StatelessWidget {
   final VoidCallback onTryNow;
@@ -11,86 +10,70 @@ class VirtualTryOnCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
+        color: const Color(0xFF070235),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.purple600.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: const Color(0xFF070235).withValues(alpha: 0.16),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
       child: Row(
         children: [
-          Expanded(
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1B4B),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.view_in_ar_outlined,
+              color: Color(0xFFC4C1FB),
+            ),
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Virtual Try-On',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'See how clothes look on you with AR',
+                SizedBox(height: 4),
+                Text(
+                  'See it on you, instantly.',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Color(0xFFC4C1FB),
                     fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: onTryNow,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppTheme.purple600,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Try Now',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    height: 1.35,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 16),
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              shape: BoxShape.circle,
+          const SizedBox(width: 12),
+          ElevatedButton(
+            onPressed: onTryNow,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFF070235),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
-            child: const Icon(
-              Icons.camera_alt_outlined,
-              size: 48,
-              color: Colors.white,
+            child: const Text(
+              'Try Now',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
             ),
           ),
         ],

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../models/order.dart';
+import '../services/order_service.dart';
 import '../theme/app_theme.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
@@ -17,47 +19,129 @@ class OrderTrackingScreen extends StatefulWidget {
 }
 
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
-  final String _trackingNumber = 'TRK123456789';
-  final String _estimatedDelivery = 'Dec 25, 2024';
-  int _currentStatus = 2; // 0: Order Placed, 1: Packed, 2: Shipped, 3: Out for Delivery, 4: Delivered
+  final OrderService _orderService = OrderService.instance;
 
-  final List<Map<String, dynamic>> _trackingHistory = [
-    {
-      'status': 'Order Placed',
-      'description': 'Your order has been confirmed',
-      'date': 'Dec 20, 2024',
-      'time': '10:30 AM',
-      'completed': true,
-    },
-    {
-      'status': 'Order Packed',
-      'description': 'Your order has been packed',
-      'date': 'Dec 21, 2024',
-      'time': '02:15 PM',
-      'completed': true,
-    },
-    {
-      'status': 'Shipped',
-      'description': 'Package is on the way',
-      'date': 'Dec 22, 2024',
-      'time': '09:00 AM',
-      'completed': true,
-    },
-    {
-      'status': 'Out for Delivery',
-      'description': 'Package will arrive today',
-      'date': 'Dec 23, 2024',
-      'time': 'Expected',
-      'completed': false,
-    },
-    {
-      'status': 'Delivered',
-      'description': 'Package has been delivered',
-      'date': 'Dec 23, 2024',
-      'time': 'Expected',
-      'completed': false,
-    },
-  ];
+  Order? get _order => _orderService.findById(widget.orderId);
+
+  String get _trackingNumber {
+    return 'TRK${widget.orderId.hashCode.abs().toString().padLeft(9, '0')}';
+  }
+
+  String get _estimatedDelivery {
+    final deliveryDate = (_order?.date ?? DateTime.now()).add(
+      const Duration(days: 5),
+    );
+    return _formatDate(deliveryDate);
+  }
+
+  int get _currentStatus {
+    final status = _order?.status ?? 'In Transit';
+    switch (status) {
+      case 'Order Placed':
+        return 0;
+      case 'Delivered':
+        return 4;
+      case 'Cancelled':
+        return 0;
+      case 'In Transit':
+      default:
+        return 2;
+    }
+  }
+
+  List<Map<String, dynamic>> get _trackingHistory {
+    final orderDate = _order?.date ?? DateTime.now();
+    final completedUntil = _currentStatus;
+
+    Map<String, dynamic> item(
+      int index,
+      String status,
+      String description,
+      DateTime date,
+    ) {
+      return {
+        'status': status,
+        'description': description,
+        'date': _formatDate(date),
+        'time': index <= completedUntil ? _formatTime(date) : 'Expected',
+        'completed': index <= completedUntil,
+      };
+    }
+
+    return [
+      item(0, 'Order Placed', 'Your order has been confirmed', orderDate),
+      item(
+        1,
+        'Order Packed',
+        'Your order is being packed',
+        orderDate.add(const Duration(days: 1)),
+      ),
+      item(
+        2,
+        'Shipped',
+        'Package is on the way',
+        orderDate.add(const Duration(days: 2)),
+      ),
+      item(
+        3,
+        'Out for Delivery',
+        'Package will arrive soon',
+        orderDate.add(const Duration(days: 4)),
+      ),
+      item(
+        4,
+        'Delivered',
+        'Package has been delivered',
+        orderDate.add(const Duration(days: 5)),
+      ),
+    ];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _orderService.addListener(_refresh);
+    _orderService.loadOrders();
+  }
+
+  @override
+  void dispose() {
+    _orderService.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  String _formatTime(DateTime date) {
+    final hour = date.hour == 0
+        ? 12
+        : date.hour > 12
+        ? date.hour - 12
+        : date.hour;
+    final minute = date.minute.toString().padLeft(2, '0');
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
+  }
 
   void _copyTrackingNumber() {
     Clipboard.setData(ClipboardData(text: _trackingNumber));
@@ -70,23 +154,77 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     );
   }
 
+  void _showIssueMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_orderService.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_order == null) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: widget.onBack,
+          ),
+          title: const Text('Track Order'),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.receipt_long_outlined,
+                  size: 56,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Order not found',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This order is not available on your account yet.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.gray900),
+          icon: Icon(
+            Icons.arrow_back,
+            color: Theme.of(context).iconTheme.color,
+          ),
           onPressed: widget.onBack,
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Track Order',
-              style: TextStyle(color: AppTheme.gray900, fontSize: 20),
+              style: TextStyle(
+                color: Theme.of(context).textTheme.titleLarge?.color,
+                fontSize: 20,
+              ),
             ),
             Text(
               widget.orderId,
@@ -96,8 +234,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share, color: AppTheme.gray700),
-            onPressed: () {},
+            icon: Icon(Icons.share, color: Theme.of(context).iconTheme.color),
+            onPressed: () => _showIssueMessage('Share coming soon.'),
           ),
         ],
       ),
@@ -125,8 +263,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: AppTheme.purplePinkGradient,
-        borderRadius: BorderRadius.circular(20),
+        gradient: AppTheme.atelierDarkGradient,
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         children: [
@@ -139,7 +277,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             child: const Icon(
               Icons.local_shipping,
               size: 48,
-              color: AppTheme.purple600,
+              color: AppTheme.atelierMidnight,
             ),
           ),
           const SizedBox(height: 16),
@@ -154,16 +292,13 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           const SizedBox(height: 8),
           Text(
             _trackingHistory[_currentStatus]['description'],
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
-            ),
+            style: const TextStyle(fontSize: 14, color: Colors.white70),
           ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -173,10 +308,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 const SizedBox(width: 8),
                 const Text(
                   'Estimated Delivery: ',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white70,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.white70),
                 ),
                 Text(
                   _estimatedDelivery,
@@ -198,8 +330,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
@@ -207,20 +339,20 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Tracking Number',
                   style: TextStyle(
                     fontSize: 12,
-                    color: AppTheme.gray500,
+                    color: Theme.of(context).textTheme.bodySmall?.color,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   _trackingNumber,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.gray900,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                   ),
                 ),
               ],
@@ -228,11 +360,11 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           ),
           Container(
             decoration: BoxDecoration(
-              color: AppTheme.purple600.withOpacity(0.1),
+              color: AppTheme.atelierSurfaceLow,
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
-              icon: const Icon(Icons.copy, color: AppTheme.purple600),
+              icon: const Icon(Icons.copy, color: AppTheme.atelierMidnight),
               onPressed: _copyTrackingNumber,
             ),
           ),
@@ -245,18 +377,18 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Tracking History',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppTheme.gray900,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
           const SizedBox(height: 20),
@@ -288,8 +420,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                gradient: isCompleted ? AppTheme.purplePinkGradient : null,
-                color: isCompleted ? null : AppTheme.gray200,
+                color: isCompleted
+                    ? AppTheme.atelierMidnight
+                    : AppTheme.gray200,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: isCompleted ? Colors.transparent : AppTheme.gray300,
@@ -306,8 +439,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 height: 60,
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 decoration: BoxDecoration(
-                  gradient: isCompleted ? AppTheme.purplePinkGradient : null,
-                  color: isCompleted ? null : AppTheme.gray200,
+                  color: isCompleted
+                      ? AppTheme.atelierMidnight
+                      : AppTheme.gray200,
                 ),
               ),
           ],
@@ -324,7 +458,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: isCompleted ? AppTheme.gray900 : AppTheme.gray400,
+                    color: isCompleted
+                        ? Theme.of(context).textTheme.bodyLarge?.color
+                        : AppTheme.gray400,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -345,10 +481,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${item['date']} • ${item['time']}',
+                      '${item['date']} | ${item['time']}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: isCompleted ? AppTheme.gray500 : AppTheme.gray400,
+                        color: isCompleted
+                            ? AppTheme.gray500
+                            : AppTheme.gray400,
                       ),
                     ),
                   ],
@@ -362,21 +500,22 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   }
 
   Widget _buildDeliveryInfo() {
+    final order = _order;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Delivery Address',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppTheme.gray900,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
           const SizedBox(height: 16),
@@ -385,32 +524,32 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppTheme.purple600.withOpacity(0.1),
+                  color: AppTheme.atelierSurfaceLow,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.location_on,
-                  color: AppTheme.purple600,
+                  color: AppTheme.atelierMidnight,
                   size: 24,
                 ),
               ),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Home',
+                      order?.addressName ?? 'Delivery Address',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.gray900,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
-                      '123 Main Street, Apartment 4B\nNew York, NY 10001',
-                      style: TextStyle(
+                      '${order?.address ?? ''}\n${order?.city ?? ''}\n${order?.phone ?? ''}',
+                      style: const TextStyle(
                         fontSize: 14,
                         color: AppTheme.gray600,
                       ),
@@ -430,11 +569,13 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       children: [
         Container(
           decoration: BoxDecoration(
-            gradient: AppTheme.purplePinkGradient,
-            borderRadius: BorderRadius.circular(16),
+            color: AppTheme.atelierMidnight,
+            borderRadius: BorderRadius.circular(14),
           ),
           child: ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: () => _showIssueMessage(
+              'Delivery support will use this order ID: ${widget.orderId}',
+            ),
             icon: const Icon(Icons.support_agent, color: Colors.white),
             label: const Text(
               'Contact Delivery Partner',
@@ -457,12 +598,13 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
-          onPressed: () {},
+          onPressed: () =>
+              _showIssueMessage('Issue report created for ${widget.orderId}.'),
           icon: const Icon(Icons.help_outline),
           label: const Text('Report an Issue'),
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppTheme.purple600,
-            side: const BorderSide(color: AppTheme.purple600),
+            foregroundColor: AppTheme.atelierMidnight,
+            side: const BorderSide(color: AppTheme.atelierMidnight),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),

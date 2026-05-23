@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+
 import '../models/product_photo.dart';
 import '../services/supabase_products_service.dart';
+import '../services/wishlist_service.dart';
 import '../theme/app_theme.dart';
 
 class ProductGrid extends StatefulWidget {
@@ -15,6 +17,7 @@ class ProductGrid extends StatefulWidget {
 
 class _ProductGridState extends State<ProductGrid> {
   final SupabaseProductsService _productsService = SupabaseProductsService();
+  final WishlistService _wishlistService = WishlistService.instance;
   List<ProductPhoto> _products = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -22,7 +25,31 @@ class _ProductGridState extends State<ProductGrid> {
   @override
   void initState() {
     super.initState();
+    _wishlistService.addListener(_refreshWishlist);
+    _wishlistService.load();
     _loadProducts();
+  }
+
+  @override
+  void dispose() {
+    _wishlistService.removeListener(_refreshWishlist);
+    super.dispose();
+  }
+
+  void _refreshWishlist() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleWishlist(ProductPhoto product) async {
+    final added = await _wishlistService.toggle(product);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(added ? 'Added to wishlist' : 'Removed from wishlist'),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _loadProducts() async {
@@ -52,22 +79,15 @@ class _ProductGridState extends State<ProductGrid> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Featured Products',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            TextButton(
-              onPressed: () {},
-              child: const Text('See All'),
-            ),
-          ],
+        Text(
+          'New Arrivals',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         if (_isLoading)
           const Center(
             child: Padding(
@@ -97,15 +117,18 @@ class _ProductGridState extends State<ProductGrid> {
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: 0.55, // Further reduced to fix remaining overflow
+              childAspectRatio: 0.49,
               crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+              mainAxisSpacing: 32,
             ),
             itemCount: _products.length,
             itemBuilder: (context, index) {
+              final product = _products[index];
               return ProductCard(
-                product: _products[index],
-                onTap: () => widget.onProductClick(_products[index].id),
+                product: product,
+                isFavorite: _wishlistService.contains(product.id),
+                onTap: () => widget.onProductClick(product.id),
+                onFavoriteTap: () => _toggleWishlist(product),
               );
             },
           ),
@@ -116,161 +139,140 @@ class _ProductGridState extends State<ProductGrid> {
 
 class ProductCard extends StatelessWidget {
   final ProductPhoto product;
+  final bool isFavorite;
   final VoidCallback onTap;
+  final VoidCallback onFavoriteTap;
 
-  const ProductCard({super.key, required this.product, required this.onTap});
+  const ProductCard({
+    super.key,
+    required this.product,
+    required this.isFavorite,
+    required this.onTap,
+    required this.onFavoriteTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Product image
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: CachedNetworkImage(
-                      imageUrl: product.imageUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: AppTheme.gray100,
-                        child: const Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: AppTheme.gray100,
-                        child: const Icon(Icons.error),
-                      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AspectRatio(
+                  aspectRatio: 3 / 4,
+                  child: CachedNetworkImage(
+                    imageUrl: product.imageUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      color: const Color(0xFFE9EDFF),
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: const Color(0xFFE9EDFF),
+                      child: const Icon(Icons.image_not_supported_outlined),
                     ),
                   ),
                 ),
-                // Virtual try-on badge
+              ),
+              if (product.tryOnReady)
                 Positioned(
-                  top: 8,
-                  right: 8,
+                  left: 10,
+                  top: 10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
-                      gradient: AppTheme.purplePinkGradient,
-                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.white.withValues(alpha: 0.86),
+                      borderRadius: BorderRadius.circular(999),
                     ),
                     child: const Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.auto_awesome, size: 12, color: Colors.white),
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 12,
+                          color: Color(0xFF070235),
+                        ),
                         SizedBox(width: 4),
                         Text(
                           'AR',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Color(0xFF070235),
                             fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                // Favorite button
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.favorite_border,
-                      size: 16,
-                      color: AppTheme.gray700,
-                    ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IconButton(
+                  tooltip: isFavorite
+                      ? 'Remove from wishlist'
+                      : 'Add to wishlist',
+                  onPressed: onFavoriteTap,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.92),
+                    fixedSize: const Size(34, 34),
+                    minimumSize: const Size(34, 34),
+                    padding: EdgeInsets.zero,
                   ),
-                ),
-              ],
-            ),
-            // Product info
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'StyleSprint',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.gray500,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      product.name,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.gray900,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        const Icon(Icons.star, size: 14, color: AppTheme.yellow400),
-                        const SizedBox(width: 4),
-                        Text(
-                          '4.7',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          '\$49.99',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.gray900,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  icon: Icon(
+                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                    size: 18,
+                    color: isFavorite
+                        ? AppTheme.red500
+                        : AppTheme.atelierMidnight,
+                  ),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            product.brand.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.15,
+              color: Theme.of(context).textTheme.bodySmall?.color,
+              fontWeight: FontWeight.w600,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            product.name,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontSize: 15,
+              height: 1.15,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '\$${product.price.toStringAsFixed(2)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontSize: 15,
+              height: 1.15,
+              fontWeight: FontWeight.w800,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ],
       ),
     );
   }

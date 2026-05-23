@@ -4,7 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
 import '../services/virtual_tryon_service.dart';
-import '../models/tryon_result.dart';
 
 class VirtualTryOnDialog extends StatefulWidget {
   final String productImageUrl;
@@ -80,10 +79,14 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
       // Check if server is available
       final isAvailable = await _tryOnService.isServerAvailable();
       if (!isAvailable) {
-        throw Exception('Server is not available. Please make sure the backend is running.');
+        throw Exception(
+          'Server is not available. Please make sure the backend is running.',
+        );
       }
 
-      final clothImageBytes = await _downloadProductImage(widget.productImageUrl);
+      final clothImageBytes = await _downloadProductImage(
+        widget.productImageUrl,
+      );
 
       final result = await _tryOnService.processBase64Images(
         personImageBytes: _selectedPersonImageBytes!,
@@ -151,9 +154,7 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
         padding: const EdgeInsets.all(24),
@@ -167,10 +168,7 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
               children: [
                 const Text(
                   'Virtual Try-On',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -181,17 +179,12 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
             const SizedBox(height: 8),
             Text(
               'Upload your photo to see how ${widget.productName} looks on you',
-              style: const TextStyle(
-                color: AppTheme.gray600,
-                fontSize: 14,
-              ),
+              style: const TextStyle(color: AppTheme.gray600, fontSize: 14),
             ),
             const SizedBox(height: 24),
 
             // Content
-            Expanded(
-              child: _buildContent(),
-            ),
+            Expanded(child: _buildContent()),
 
             // Actions
             const SizedBox(height: 24),
@@ -199,9 +192,11 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
               ElevatedButton.icon(
                 onPressed: _pickImage,
                 icon: const Icon(Icons.photo_library),
-                label: Text(_selectedPersonImage == null
-                    ? 'Select Your Photo'
-                    : 'Change Photo'),
+                label: Text(
+                  _selectedPersonImage == null
+                      ? 'Select Your Photo'
+                      : 'Change Photo',
+                ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -213,7 +208,7 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
                 const SizedBox(height: 12),
                 Container(
                   decoration: BoxDecoration(
-                    gradient: AppTheme.purplePinkGradient,
+                    color: AppTheme.atelierMidnight,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: ElevatedButton.icon(
@@ -250,11 +245,7 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error_outline,
-              size: 64,
-              color: AppTheme.red500,
-            ),
+            const Icon(Icons.error_outline, size: 64, color: AppTheme.red500),
             const SizedBox(height: 16),
             Text(
               _errorMessage!,
@@ -284,18 +275,12 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
             const SizedBox(height: 24),
             const Text(
               'Processing your try-on...',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 8),
             const Text(
               'This may take 1-2 minutes',
-              style: TextStyle(
-                color: AppTheme.gray600,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: AppTheme.gray600, fontSize: 14),
             ),
           ],
         ),
@@ -308,10 +293,7 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Image.memory(
-                _resultImageBytes!,
-                fit: BoxFit.contain,
-              ),
+              child: Image.memory(_resultImageBytes!, fit: BoxFit.contain),
             ),
           ),
           const SizedBox(height: 16),
@@ -346,7 +328,7 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
                   icon: const Icon(Icons.check),
                   label: const Text('Looks Good!'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.purple600,
+                    backgroundColor: AppTheme.atelierMidnight,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -364,10 +346,7 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
     if (_selectedPersonImage != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Image.memory(
-          _selectedPersonImageBytes!,
-          fit: BoxFit.contain,
-        ),
+        child: Image.memory(_selectedPersonImageBytes!, fit: BoxFit.contain),
       );
     }
 
@@ -379,31 +358,25 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: AppTheme.purple600.withOpacity(0.1),
+              color: AppTheme.atelierSurfaceLow,
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.person_outline,
               size: 64,
-              color: AppTheme.purple600,
+              color: AppTheme.atelierMidnight,
             ),
           ),
           const SizedBox(height: 24),
           const Text(
             'Upload Your Photo',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           const Text(
             'Take or select a full-body photo\nfor the best results',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppTheme.gray600,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: AppTheme.gray600, fontSize: 14),
           ),
         ],
       ),

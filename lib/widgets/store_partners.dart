@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
 
 class StorePartners extends StatelessWidget {
   const StorePartners({super.key});
@@ -23,14 +22,11 @@ class StorePartners extends StatelessWidget {
           children: [
             Text(
               'Our Store Partners',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
-            TextButton(
-              onPressed: () {},
-              child: const Text('View All'),
-            ),
+            TextButton(onPressed: () {}, child: const Text('View All')),
           ],
         ),
         const SizedBox(height: 16),
@@ -41,7 +37,9 @@ class StorePartners extends StatelessWidget {
             itemCount: _stores.length,
             itemBuilder: (context, index) {
               return Padding(
-                padding: EdgeInsets.only(right: index < _stores.length - 1 ? 12 : 0),
+                padding: EdgeInsets.only(
+                  right: index < _stores.length - 1 ? 12 : 0,
+                ),
                 child: Container(
                   width: 80,
                   decoration: BoxDecoration(

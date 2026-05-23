@@ -1,5 +1,5 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onGetStarted;
@@ -11,127 +11,152 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  final List<OnboardingSlide> _slides = [
-    OnboardingSlide(
-      icon: Icons.shopping_bag_outlined,
-      title: 'Shop From\nTop Brands',
-      description: 'Access thousands of products from Zara, H&M, Nike, and more in one app',
-      gradient: AppTheme.blueCyanGradient,
-    ),
-    OnboardingSlide(
-      icon: Icons.auto_awesome,
-      title: 'Virtual\nTry-On',
-      description: 'See how clothes look on you with our AI-powered AR technology',
-      gradient: AppTheme.purplePinkGradient,
-    ),
-    OnboardingSlide(
-      icon: Icons.bolt,
-      title: 'Fast & Easy\nCheckout',
-      description: 'Secure payment and quick delivery from all your favorite stores',
-      gradient: AppTheme.orangeRedGradient,
-    ),
+  static const _heroImages = [
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuBnu2IuRnbmxbj3fOJw51TEKk63ToygomUiTizyFPEIsOvSaA_fHnsSFejXdlwjaavD9KrCfjKpSyp35E3OFumYQ4zifNFfCNyJjtoT_lw-suiQk9X1fcb3piJvAd8ySju_A781IGTcG_Gkro1UyqtUb6LlUB3KEVpcxPU3PTJeMD9_md2P04tsCH8icH8hDVy6YcfzKiCxoIHcLNGd4-zLQaRLNP9pXSEw9FHlare1uCdbGCi3rV-S4tlpGctLDNTbG6vs0PXO8A',
+    'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=80',
   ];
-
-  void _handleNext() {
-    if (_currentPage < _slides.length - 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      widget.onGetStarted();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          Expanded(
-            child: PageView.builder(
-              controller: _pageController,
-              onPageChanged: (index) {
-                setState(() {
-                  _currentPage = index;
-                });
-              },
-              itemCount: _slides.length,
-              itemBuilder: (context, index) {
-                return _buildSlide(_slides[index]);
-              },
-            ),
+          PageView.builder(
+            itemCount: _heroImages.length,
+            onPageChanged: (index) => setState(() => _currentPage = index),
+            itemBuilder: (context, index) {
+              return CachedNetworkImage(
+                imageUrl: _heroImages[index],
+                fit: BoxFit.cover,
+                placeholder: (context, url) =>
+                    Container(color: const Color(0xFF141B2B)),
+                errorWidget: (context, url, error) => Container(
+                  color: const Color(0xFF141B2B),
+                  child: const Icon(
+                    Icons.image_not_supported_outlined,
+                    color: Colors.white54,
+                    size: 44,
+                  ),
+                ),
+              );
+            },
           ),
-          _buildBottomSection(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSlide(OnboardingSlide slide) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: slide.gradient,
-      ),
-      child: Stack(
-        children: [
-          // Decorative elements
-          Positioned(
-            top: 80,
-            right: 40,
-            child: Container(
-              width: 160,
-              height: 160,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                shape: BoxShape.circle,
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x11070235),
+                  Color(0x33070235),
+                  Color(0xF0070235),
+                ],
+                stops: [0, 0.48, 1],
               ),
             ),
           ),
-          Positioned(
-            bottom: 80,
-            left: 40,
-            child: Container(
-              width: 160,
-              height: 160,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          // Content
-          Center(
+          SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(32),
+              padding: const EdgeInsets.fromLTRB(32, 24, 32, 40),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      slide.icon,
-                      size: 96,
+                  const Text(
+                    'StyleSprint',
+                    style: TextStyle(
                       color: Colors.white,
+                      fontSize: 52,
+                      fontWeight: FontWeight.w800,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Shop your style, try it on virtually.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFFE1E8FD),
+                      fontSize: 19,
+                      height: 1.4,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 42),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 72,
+                    child: ElevatedButton(
+                      onPressed: widget.onGetStarted,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF070235),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Get Started',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Icon(Icons.arrow_forward, size: 26),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 64,
+                    child: OutlinedButton(
+                      onPressed: widget.onGetStarted,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.28),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        backgroundColor: Colors.white.withValues(alpha: 0.06),
+                      ),
+                      child: const Text(
+                        'Sign In',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 32),
-                  Text(
-                    slide.title,
-                    style: const TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      height: 1.2,
-                    ),
-                    textAlign: TextAlign.center,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(_heroImages.length, (index) {
+                      final selected = index == _currentPage;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        width: selected ? 36 : 10,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.34),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      );
+                    }),
                   ),
                 ],
               ),
@@ -141,106 +166,4 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ),
     );
   }
-
-  Widget _buildBottomSection() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            _slides[_currentPage].description,
-            style: TextStyle(
-              fontSize: 18,
-              color: AppTheme.gray600,
-              height: 1.5,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          // Pagination dots
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              _slides.length,
-              (index) => AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 8,
-                width: _currentPage == index ? 32 : 8,
-                decoration: BoxDecoration(
-                  color: _currentPage == index ? AppTheme.gray900 : AppTheme.gray300,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 32),
-          // Next button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _handleNext,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.gray900,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _currentPage == _slides.length - 1 ? 'Get Started' : 'Next',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward, size: 20),
-                ],
-              ),
-            ),
-          ),
-          if (_currentPage < _slides.length - 1) ...[
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: widget.onGetStarted,
-              child: Text(
-                'Skip',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppTheme.gray500,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-}
-
-class OnboardingSlide {
-  final IconData icon;
-  final String title;
-  final String description;
-  final Gradient gradient;
-
-  OnboardingSlide({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.gradient,
-  });
 }

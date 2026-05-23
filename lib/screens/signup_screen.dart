@@ -6,11 +6,13 @@ import '../theme/app_theme.dart';
 class SignUpScreen extends StatefulWidget {
   final VoidCallback onSignUp;
   final VoidCallback onSignIn;
+  final VoidCallback onEmailVerificationRequired;
 
   const SignUpScreen({
     super.key,
     required this.onSignUp,
     required this.onSignIn,
+    required this.onEmailVerificationRequired,
   });
 
   @override
@@ -41,7 +43,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
         fullName: _nameController.text.trim(),
       );
 
-      if (mounted) widget.onSignUp();
+      if (mounted) widget.onEmailVerificationRequired();
+    } catch (e) {
+      if (mounted) _showSnackBar(e.toString(), AppTheme.red600);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+    try {
+      final result = await _authService.signInWithGoogle();
+      if (mounted && result != null) widget.onSignUp();
     } catch (e) {
       if (mounted) _showSnackBar(e.toString(), AppTheme.red600);
     } finally {
@@ -81,7 +96,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.purplePinkGradient),
+        decoration: const BoxDecoration(gradient: AppTheme.atelierDarkGradient),
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -112,7 +127,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             padding: const EdgeInsets.all(24),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(18),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.14),
@@ -278,6 +293,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     icon: Icons.person_add_alt_1_outlined,
                                     onPressed: _handleSubmit,
                                   ),
+                                  const SizedBox(height: 14),
+                                  _DividerLabel(text: 'or'),
+                                  const SizedBox(height: 14),
+                                  _GoogleButton(
+                                    isLoading: _isLoading,
+                                    label: 'Continue with Google',
+                                    onPressed: _handleGoogleSignIn,
+                                  ),
                                   const SizedBox(height: 20),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
@@ -342,7 +365,57 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppTheme.purple600, width: 2),
+        borderSide: const BorderSide(
+          color: AppTheme.atelierMidnight,
+          width: 1.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _DividerLabel extends StatelessWidget {
+  final String text;
+
+  const _DividerLabel({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(child: Divider()),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+        ),
+        const Expanded(child: Divider()),
+      ],
+    );
+  }
+}
+
+class _GoogleButton extends StatelessWidget {
+  final bool isLoading;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _GoogleButton({
+    required this.isLoading,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: isLoading ? null : onPressed,
+      icon: const Icon(Icons.g_mobiledata, size: 28),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppTheme.gray900,
+        side: const BorderSide(color: AppTheme.gray200),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }
@@ -414,13 +487,12 @@ class _GradientButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: isLoading ? null : AppTheme.purplePinkGradient,
-        color: isLoading ? AppTheme.gray300 : null,
+        color: isLoading ? AppTheme.gray300 : AppTheme.atelierMidnight,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           if (!isLoading)
             BoxShadow(
-              color: AppTheme.purple600.withValues(alpha: 0.28),
+              color: AppTheme.atelierMidnight.withValues(alpha: 0.26),
               blurRadius: 14,
               offset: const Offset(0, 8),
             ),

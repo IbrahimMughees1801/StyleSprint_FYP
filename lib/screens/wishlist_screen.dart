@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_theme.dart';
 import '../models/product_photo.dart';
-import '../services/supabase_products_service.dart';
+import '../services/wishlist_service.dart';
 
 class WishlistScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -19,7 +19,7 @@ class WishlistScreen extends StatefulWidget {
 }
 
 class _WishlistScreenState extends State<WishlistScreen> {
-  final SupabaseProductsService _productsService = SupabaseProductsService();
+  final WishlistService _wishlistService = WishlistService.instance;
   List<ProductPhoto> _wishlistItems = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -27,6 +27,17 @@ class _WishlistScreenState extends State<WishlistScreen> {
   @override
   void initState() {
     super.initState();
+    _wishlistService.addListener(_refreshWishlist);
+    _loadWishlist();
+  }
+
+  @override
+  void dispose() {
+    _wishlistService.removeListener(_refreshWishlist);
+    super.dispose();
+  }
+
+  void _refreshWishlist() {
     _loadWishlist();
   }
 
@@ -37,10 +48,10 @@ class _WishlistScreenState extends State<WishlistScreen> {
     });
 
     try {
-      final items = await _productsService.fetchProducts();
+      final items = await _wishlistService.fetchItems();
       if (!mounted) return;
       setState(() {
-        _wishlistItems = items.take(4).toList();
+        _wishlistItems = items;
         _isLoading = false;
       });
     } catch (e) {
@@ -52,10 +63,9 @@ class _WishlistScreenState extends State<WishlistScreen> {
     }
   }
 
-  void _removeFromWishlist(int productId) {
-    setState(() {
-      _wishlistItems.removeWhere((item) => item.id == productId);
-    });
+  Future<void> _removeFromWishlist(int productId) async {
+    await _wishlistService.remove(productId);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Removed from wishlist'),
@@ -66,6 +76,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
   }
 
   void _addAllToCart() {
+    _wishlistService.addProductsToCart(_wishlistItems);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${_wishlistItems.length} items added to cart'),
@@ -80,22 +91,32 @@ class _WishlistScreenState extends State<WishlistScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
+          icon: Icon(
+            Icons.arrow_back,
+            color: Theme.of(context).iconTheme.color,
+          ),
           onPressed: widget.onBack,
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'My Wishlist',
-              style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color, fontSize: 20),
+              'Wishlist',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             Text(
               '${_wishlistItems.length} items',
-              style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 14),
+              style: TextStyle(
+                color: Theme.of(context).textTheme.bodySmall?.color,
+                fontSize: 14,
+              ),
             ),
           ],
         ),
@@ -110,24 +131,24 @@ class _WishlistScreenState extends State<WishlistScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? Center(
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: AppTheme.red500),
-                  ),
-                )
-              : _wishlistItems.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(20),
-                      itemCount: _wishlistItems.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: _buildWishlistItem(_wishlistItems[index]),
-                        );
-                      },
-                    ),
+          ? Center(
+              child: Text(
+                _errorMessage!,
+                style: const TextStyle(color: AppTheme.red500),
+              ),
+            )
+          : _wishlistItems.isEmpty
+          ? _buildEmptyState()
+          : ListView.builder(
+              padding: const EdgeInsets.all(20),
+              itemCount: _wishlistItems.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _buildWishlistItem(_wishlistItems[index]),
+                );
+              },
+            ),
     );
   }
 
@@ -173,15 +194,18 @@ class _WishlistScreenState extends State<WishlistScreen> {
             const SizedBox(height: 32),
             Container(
               decoration: BoxDecoration(
-                gradient: AppTheme.purplePinkGradient,
-                borderRadius: BorderRadius.circular(16),
+                color: AppTheme.atelierMidnight,
+                borderRadius: BorderRadius.circular(14),
               ),
               child: ElevatedButton(
                 onPressed: widget.onBack,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -209,12 +233,15 @@ class _WishlistScreenState extends State<WishlistScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: 0.035),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -228,9 +255,8 @@ class _WishlistScreenState extends State<WishlistScreen> {
                 width: 100,
                 height: 100,
                 fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  color: AppTheme.gray100,
-                ),
+                placeholder: (context, url) =>
+                    Container(color: AppTheme.gray100),
                 errorWidget: (context, url, error) => Container(
                   width: 100,
                   height: 100,
@@ -250,7 +276,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'StyleSprint',
+                    product.brand,
                     style: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context).textTheme.bodySmall?.color,
@@ -270,7 +296,11 @@ class _WishlistScreenState extends State<WishlistScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.star, size: 14, color: AppTheme.yellow400),
+                      const Icon(
+                        Icons.star,
+                        size: 14,
+                        color: AppTheme.yellow400,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '4.7',
@@ -286,7 +316,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
                   Row(
                     children: [
                       Text(
-                        '\$49.99',
+                        '\$${product.price.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -302,18 +332,27 @@ class _WishlistScreenState extends State<WishlistScreen> {
             Column(
               children: [
                 IconButton(
+                  tooltip: 'Remove from wishlist',
                   icon: const Icon(Icons.favorite, color: AppTheme.red500),
                   onPressed: () => _removeFromWishlist(product.id),
+                ),
+                const Text(
+                  'Remove',
+                  style: TextStyle(fontSize: 11, color: AppTheme.red500),
                 ),
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: AppTheme.purple600,
+                    color: AppTheme.atelierMidnight,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.shopping_cart_outlined, color: Colors.white),
+                    icon: const Icon(
+                      Icons.shopping_cart_outlined,
+                      color: Colors.white,
+                    ),
                     onPressed: () {
+                      _wishlistService.addProductToCart(product);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Added to cart'),

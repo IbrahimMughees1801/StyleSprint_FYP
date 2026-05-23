@@ -1,17 +1,29 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_model.dart';
 
 /// Service class for Firebase Authentication operations
 class FirebaseAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   /// Get current user
   User? get currentUser => _auth.currentUser;
 
   /// Auth state changes stream
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  bool get isCurrentUserEmailVerified => currentUser?.emailVerified ?? false;
+
+  bool get isCurrentUserPasswordAccount {
+    final user = currentUser;
+    if (user == null) return false;
+    return user.providerData.any(
+      (provider) => provider.providerId == 'password',
+    );
+  }
 
   /// Sign up with email and password
   Future<UserCredential?> signUpWithEmail({
@@ -26,6 +38,7 @@ class FirebaseAuthService {
 
       // Update display name
       await userCredential.user?.updateDisplayName(fullName);
+      await userCredential.user?.sendEmailVerification();
 
       // Create user document in Firestore
       if (userCredential.user != null) {
@@ -87,9 +100,60 @@ class FirebaseAuthService {
     }
   }
 
+  /// Resend verification email for the current user
+  Future<void> sendEmailVerification() async {
+    try {
+      final user = currentUser;
+      if (user == null) throw 'No user logged in';
+      await user.sendEmailVerification();
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      if (e is String) rethrow;
+      throw 'Failed to send verification email';
+    }
+  }
+
+  /// Reload current user and return latest email verification state
+  Future<bool> reloadAndCheckEmailVerified() async {
+    try {
+      final user = currentUser;
+      if (user == null) return false;
+      await user.reload();
+      return _auth.currentUser?.emailVerified ?? false;
+    } catch (e) {
+      throw 'Failed to check verification status';
+    }
+  }
+
+  /// Sign in with Google
+  Future<UserCredential?> signInWithGoogle() async {
+    try {
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        return null;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final userCredential = await _auth.signInWithCredential(credential);
+      await _syncSignedInUserProfile(userCredential.user);
+      return userCredential;
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw 'Google sign-in failed. Please try again.';
+    }
+  }
+
   /// Sign out
   Future<void> signOut() async {
     try {
+      await _googleSignIn.signOut();
       await _auth.signOut();
     } catch (e) {
       throw 'Failed to sign out';
@@ -104,6 +168,21 @@ class FirebaseAuthService {
       throw _handleAuthException(e);
     } catch (e) {
       throw 'Failed to send password reset email';
+    }
+  }
+
+  Future<void> _syncSignedInUserProfile(User? user) async {
+    if (user == null) return;
+
+    try {
+      await _firestore.collection('users').doc(user.uid).set({
+        'email': user.email ?? '',
+        'fullName': user.displayName ?? 'User',
+        'photoUrl': user.photoURL,
+        'lastLogin': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Firebase Auth succeeded; profile metadata can sync later.
     }
   }
 

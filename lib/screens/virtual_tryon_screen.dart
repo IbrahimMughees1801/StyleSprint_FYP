@@ -22,6 +22,13 @@ class VirtualTryOnScreen extends StatefulWidget {
 }
 
 class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
+  static const Color _atelierBg = Color(0xFF000C1D);
+  static const Color _atelierPanel = Color(0xFF122336);
+  static const Color _atelierAccent = Color(0xFFC4C1FB);
+  static const Color _atelierMuted = Color(0xFF7A8AA2);
+  static const String _previewImageUrl =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuClIiuItSJyXWfb-KhOQvgLqJ7BfZWeOTgEubfMhlflCz8q52hELdZFWugyxSGxQYTT-gpniusuFaz47Id8_8XXeyOkaN31tv5AFt8J2w2zXuW8UGUedYHxSxcyaJvnufso5DQQwW3E7LaCTDLmgIyYCSUk-0_jPiVtsuwfIZ5Cre-ivwP1xrH9bgPHTq_INAwrdJsqIzytLp0_ppkWU2SsvQabGDMUKtVEk3BIGvBU0YqLv6qRCLC4xbG_ihTjVtFBcX6NaqacHw';
+
   final ImagePicker _picker = ImagePicker();
   final SupabaseProductsService _productsService = SupabaseProductsService();
   final VirtualTryOnService _tryOnService = VirtualTryOnService();
@@ -58,6 +65,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
 
       setState(() {
         _products = items;
+        _selectedProductId ??= items.isNotEmpty ? items.first.id : null;
         _isLoadingProducts = false;
       });
     } catch (e) {
@@ -77,7 +85,9 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     }
   }
 
-  Future<void> _openCamera({CameraLensDirection? preferredLensDirection}) async {
+  Future<void> _openCamera({
+    CameraLensDirection? preferredLensDirection,
+  }) async {
     if (_isCameraInitializing) return;
 
     if (kIsWeb) {
@@ -292,10 +302,14 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     try {
       final isAvailable = await _tryOnService.isServerAvailable();
       if (!isAvailable) {
-        throw Exception('Backend is not running at ${VirtualTryOnService.baseUrl}.');
+        throw Exception(
+          'Backend is not running at ${VirtualTryOnService.baseUrl}.',
+        );
       }
 
-      final clothResponse = await http.get(Uri.parse(selectedProduct.imageUrl));
+      final clothResponse = await http.get(
+        Uri.parse(selectedProduct.tryOnImageUrl),
+      );
       if (clothResponse.statusCode != 200) {
         throw Exception('Failed to download selected product image.');
       }
@@ -352,7 +366,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
               icon: Icons.camera_alt,
               label: 'Open Camera',
               description: 'Open live camera preview',
-              gradient: AppTheme.purplePinkGradient,
+              gradient: AppTheme.atelierDarkGradient,
               onTap: () async {
                 Navigator.pop(context);
                 await _openCamera();
@@ -395,7 +409,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: Colors.white, size: 28),
@@ -417,7 +431,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                   Text(
                     description,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 0.8),
                       fontSize: 12,
                     ),
                   ),
@@ -441,132 +455,438 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: _atelierBg,
       body: Stack(
         children: [
           if (!_cameraActive) _buildWelcomeScreen() else _buildCameraView(),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onTap: widget.onBack,
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.arrow_back, color: Colors.white),
-                    ),
-                  ),
-                  if (_cameraActive)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.purplePinkGradient,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.auto_awesome, size: 16, color: Colors.white),
-                          SizedBox(width: 8),
-                          Text(
-                            'AI Try-On Active',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  if (_cameraActive)
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: GestureDetector(
-                        onTap: _showTryOnOptions,
-                        child: const Icon(Icons.refresh, color: Colors.white),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
+          _buildAtelierTopBar(),
           if (_cameraActive) _buildBottomControls(),
         ],
       ),
     );
   }
 
-  Widget _buildWelcomeScreen() {
-    return Center(
+  Widget _buildAtelierTopBar() {
+    return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+        child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(48),
-              decoration: BoxDecoration(
-                gradient: AppTheme.purplePinkGradient,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppTheme.purple600.withOpacity(0.3), width: 4),
-              ),
-              child: const Icon(Icons.camera_alt, size: 96, color: Colors.white),
+            IconButton(
+              onPressed: widget.onBack,
+              icon: const Icon(Icons.menu, color: _atelierAccent, size: 30),
             ),
-            const SizedBox(height: 32),
-            const Text(
-              'Ready to Try On?',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Position yourself in front of the camera\nand let our AI work its magic',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 16,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            Container(
-              decoration: BoxDecoration(
-                gradient: AppTheme.purplePinkGradient,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ElevatedButton(
-                onPressed: _showTryOnOptions,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            const Expanded(
+              child: Text(
+                'StyleSprint',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFFE3DFFF),
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
                 ),
-                child: const Text(
-                  'Start Camera',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+              ),
+            ),
+            IconButton(
+              onPressed: _showTryOnOptions,
+              icon: const Icon(
+                Icons.shopping_bag_outlined,
+                color: _atelierAccent,
+                size: 28,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWelcomeScreen() {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 94, 24, 132),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'VIRTUAL ATELIER',
+                        style: TextStyle(
+                          color: _atelierMuted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 3,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'AI Try-On',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 46,
+                          fontWeight: FontWeight.w500,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 74,
+                  height: 74,
+                  decoration: BoxDecoration(
+                    color: _atelierPanel,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: _atelierMuted,
+                    size: 30,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
+            _buildAtelierPreview(),
+            const SizedBox(height: 42),
+            _buildGarmentCarousel(),
+            const SizedBox(height: 28),
+            _buildProcessButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAtelierPreview() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: AspectRatio(
+        aspectRatio: 3 / 4,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: _previewImageUrl,
+              fit: BoxFit.cover,
+              color: Colors.blueGrey.withValues(alpha: 0.5),
+              colorBlendMode: BlendMode.saturation,
+              placeholder: (context, url) => Container(color: _atelierPanel),
+            ),
+            Container(color: _atelierBg.withValues(alpha: 0.46)),
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.all(40),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.34),
+                      width: 2,
+                    ),
                   ),
                 ),
               ),
             ),
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 28),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.14),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Upload a high-quality portrait for the most accurate results',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF9AA9C1),
+                        fontSize: 16,
+                        height: 1.55,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildPreviewButton(
+                            icon: Icons.upload,
+                            label: 'Upload Photo',
+                            filled: true,
+                            onTap: _pickFromGallery,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildPreviewButton(
+                            icon: Icons.photo_camera_outlined,
+                            label: 'Camera',
+                            filled: false,
+                            onTap: () => _openCamera(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              left: 36,
+              bottom: 28,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(width: 4, height: 18, color: Colors.white38),
+                      const SizedBox(width: 3),
+                      Container(width: 4, height: 28, color: Colors.white70),
+                      const SizedBox(width: 3),
+                      Container(width: 4, height: 18, color: Colors.white38),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'AI FOCUS LOCK',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewButton({
+    required IconData icon,
+    required String label,
+    required bool filled,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      height: 62,
+      child: ElevatedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 22),
+        label: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: filled
+              ? Colors.white
+              : Colors.white.withValues(alpha: 0.06),
+          foregroundColor: filled ? _atelierBg : Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: filled
+                  ? Colors.transparent
+                  : Colors.white.withValues(alpha: 0.15),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGarmentCarousel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'SELECT GARMENT',
+              style: TextStyle(
+                color: _atelierMuted,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.8,
+              ),
+            ),
+            Text(
+              'Browse Collection',
+              style: TextStyle(
+                color: _atelierAccent,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          height: 174,
+          child: _isLoadingProducts
+              ? const Center(child: CircularProgressIndicator())
+              : _products.isEmpty
+              ? Center(
+                  child: Text(
+                    _productsError ?? 'No Supabase products yet.',
+                    style: const TextStyle(color: _atelierMuted),
+                  ),
+                )
+              : ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _products.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 20),
+                  itemBuilder: (context, index) {
+                    final product = _products[index];
+                    final selected = product.id == _selectedProductId;
+                    return GestureDetector(
+                      onTap: () => setState(() {
+                        _selectedProductId = product.id;
+                      }),
+                      child: SizedBox(
+                        width: 132,
+                        child: Column(
+                          children: [
+                            Container(
+                              height: 112,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: selected
+                                      ? _atelierAccent
+                                      : Colors.white.withValues(alpha: 0.12),
+                                  width: selected ? 3 : 1,
+                                ),
+                                boxShadow: selected
+                                    ? [
+                                        BoxShadow(
+                                          color: _atelierAccent.withValues(
+                                            alpha: 0.16,
+                                          ),
+                                          blurRadius: 18,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(15),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    CachedNetworkImage(
+                                      imageUrl: product.tryOnImageUrl,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    if (selected)
+                                      Positioned(
+                                        top: 8,
+                                        right: 8,
+                                        child: Container(
+                                          width: 28,
+                                          height: 28,
+                                          decoration: const BoxDecoration(
+                                            color: _atelierAccent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.check,
+                                            color: _atelierBg,
+                                            size: 18,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              product.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: selected ? Colors.white : _atelierMuted,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '\$${product.price.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: _atelierMuted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProcessButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 64,
+      child: ElevatedButton.icon(
+        onPressed: _isProcessingTryOn ? null : _processSelectedTryOn,
+        icon: _isProcessingTryOn
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: _atelierAccent,
+                ),
+              )
+            : const Icon(Icons.auto_fix_high, color: _atelierAccent),
+        label: Text(
+          _isProcessingTryOn ? 'Processing...' : 'Process Try-On',
+          style: const TextStyle(
+            color: _atelierAccent,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.8,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2B235F),
+          foregroundColor: _atelierAccent,
+          disabledBackgroundColor: const Color(0xFF2B235F),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
         ),
       ),
     );
@@ -580,7 +900,8 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
           Image.memory(_resultImageBytes!, fit: BoxFit.cover)
         else if (_capturedImageBytes != null)
           Image.memory(_capturedImageBytes!, fit: BoxFit.cover)
-        else if (_cameraController != null && _cameraController!.value.isInitialized)
+        else if (_cameraController != null &&
+            _cameraController!.value.isInitialized)
           CameraPreview(_cameraController!)
         else
           Container(
@@ -594,7 +915,11 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
             child: Center(
               child: _isCameraInitializing
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Icon(Icons.camera_alt, size: 72, color: AppTheme.purple600),
+                  : const Icon(
+                      Icons.camera_alt,
+                      size: 72,
+                      color: AppTheme.atelierMidnight,
+                    ),
             ),
           ),
         Center(
@@ -602,7 +927,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
             width: 256,
             height: 384,
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.3),
+                width: 2,
+              ),
               borderRadius: BorderRadius.circular(24),
             ),
           ),
@@ -621,9 +949,13 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 5),
-                    color: AppTheme.purple600.withOpacity(0.85),
+                    color: AppTheme.atelierMidnight.withValues(alpha: 0.85),
                   ),
-                  child: const Icon(Icons.camera, color: Colors.white, size: 34),
+                  child: const Icon(
+                    Icons.camera,
+                    color: Colors.white,
+                    size: 34,
+                  ),
                 ),
               ),
             ),
@@ -635,7 +967,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
             child: FloatingActionButton.small(
               heroTag: 'swap-camera',
               onPressed: _switchCamera,
-              backgroundColor: Colors.black.withOpacity(0.75),
+              backgroundColor: Colors.black.withValues(alpha: 0.75),
               child: const Icon(Icons.flip_camera_ios, color: Colors.white),
             ),
           ),
@@ -662,7 +994,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.transparent, Colors.black.withOpacity(0.9)],
+            colors: [Colors.transparent, Colors.black.withValues(alpha: 0.9)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -686,11 +1018,16 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                   if (selectedProduct != null) ...[
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
+                        color: Colors.white.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white.withOpacity(0.12)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
                       ),
                       child: Text(
                         'Selected product: ${selectedProduct.name}',
@@ -705,7 +1042,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                   if (_productsError != null) ...[
                     Text(
                       _productsError!,
-                      style: const TextStyle(color: AppTheme.red500, fontSize: 12),
+                      style: const TextStyle(
+                        color: AppTheme.red500,
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -720,51 +1060,57 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                             ),
                           )
                         : _products.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'No Supabase products yet.',
-                                  style: TextStyle(color: AppTheme.gray400, fontSize: 12),
+                        ? const Center(
+                            child: Text(
+                              'No Supabase products yet.',
+                              style: TextStyle(
+                                color: AppTheme.gray400,
+                                fontSize: 12,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _products.length,
+                            itemBuilder: (context, index) {
+                              final product = _products[index];
+                              final isSelected =
+                                  _selectedProductId == product.id;
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                  right: index < _products.length - 1 ? 12 : 0,
                                 ),
-                              )
-                            : ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: _products.length,
-                                itemBuilder: (context, index) {
-                                  final product = _products[index];
-                                  final isSelected = _selectedProductId == product.id;
-                                  return Padding(
-                                    padding: EdgeInsets.only(
-                                      right: index < _products.length - 1 ? 12 : 0,
-                                    ),
-                                    child: GestureDetector(
-                                      onTap: () {
-                                        setState(() {
-                                          _selectedProductId = product.id;
-                                        });
-                                      },
-                                      child: Container(
-                                        width: 80,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(16),
-                                          border: Border.all(
-                                            color: isSelected
-                                                ? AppTheme.purple600
-                                                : Colors.white.withOpacity(0.3),
-                                            width: isSelected ? 3 : 2,
-                                          ),
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(16),
-                                          child: CachedNetworkImage(
-                                            imageUrl: product.imageUrl,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedProductId = product.id;
+                                    });
+                                  },
+                                  child: Container(
+                                    width: 80,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? AppTheme.atelierAccent
+                                            : Colors.white.withValues(
+                                                alpha: 0.3,
+                                              ),
+                                        width: isSelected ? 3 : 2,
                                       ),
                                     ),
-                                  );
-                                },
-                              ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: CachedNetworkImage(
+                                        imageUrl: product.imageUrl,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -784,11 +1130,18 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                               });
                             },
                       icon: const Icon(Icons.download, color: Colors.white),
-                      label: const Text('Reset', style: TextStyle(color: Colors.white)),
+                      label: const Text(
+                        'Reset',
+                        style: TextStyle(color: Colors.white),
+                      ),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
                   ),
@@ -796,11 +1149,13 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        gradient: AppTheme.purplePinkGradient,
+                        color: AppTheme.atelierMidnight,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: ElevatedButton.icon(
-                        onPressed: _isProcessingTryOn ? null : _processSelectedTryOn,
+                        onPressed: _isProcessingTryOn
+                            ? null
+                            : _processSelectedTryOn,
                         icon: _isProcessingTryOn
                             ? const SizedBox(
                                 width: 18,
@@ -810,7 +1165,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Icon(Icons.auto_awesome, color: Colors.white),
+                            : const Icon(
+                                Icons.auto_awesome,
+                                color: Colors.white,
+                              ),
                         label: Text(
                           _isProcessingTryOn ? 'Trying On...' : 'Try On',
                           style: const TextStyle(color: Colors.white),
@@ -819,7 +1177,9 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
                     ),

@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import '../models/tryon_result.dart';
@@ -9,7 +9,7 @@ class VirtualTryOnService {
   // For local development: http://localhost:8000
   // For production: https://your-backend-domain.com
   static const String baseUrl = 'http://127.0.0.1:8000';
-  
+
   final http.Client _client = http.Client();
   final _uuid = const Uuid();
 
@@ -90,7 +90,7 @@ class VirtualTryOnService {
       final uri = Uri.parse('$baseUrl/api/tryon/cleanup/$sessionId');
       await _client.delete(uri);
     } catch (e) {
-      print('Error cleaning up session: $e');
+      debugPrint('Error cleaning up session: $e');
     }
   }
 
@@ -98,9 +98,9 @@ class VirtualTryOnService {
   Future<bool> isServerAvailable() async {
     try {
       final uri = Uri.parse('$baseUrl/');
-      final response = await _client.get(uri).timeout(
-        const Duration(seconds: 5),
-      );
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 5));
       return response.statusCode == 200;
     } catch (e) {
       return false;

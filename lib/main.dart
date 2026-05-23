@@ -7,6 +7,7 @@ import 'theme/app_theme.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/signin_screen.dart';
 import 'screens/signup_screen.dart';
+import 'screens/email_verification_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/product_detail_screen.dart';
 import 'screens/cart_screen.dart';
@@ -16,23 +17,22 @@ import 'screens/wishlist_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/order_history_screen.dart';
 import 'screens/checkout_screen.dart';
+import 'screens/order_success_screen.dart';
 import 'screens/order_tracking_screen.dart';
 import 'services/firebase_auth_service.dart';
 import 'services/supabase_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase with generated options
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await Supabase.initialize(
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,
   );
-  
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -75,6 +75,7 @@ enum AppScreen {
   onboarding,
   signin,
   signup,
+  verifyEmail,
   home,
   product,
   cart,
@@ -84,6 +85,7 @@ enum AppScreen {
   search,
   orderHistory,
   checkout,
+  orderSuccess,
   orderTracking,
 }
 
@@ -115,8 +117,13 @@ class _AppNavigatorState extends State<AppNavigator> {
       if (mounted) {
         setState(() {
           if (user != null) {
-            // User is signed in, navigate to home
-            _currentScreen = AppScreen.home;
+            _hasSeenOnboarding = true;
+            if (_authService.isCurrentUserPasswordAccount &&
+                !_authService.isCurrentUserEmailVerified) {
+              _currentScreen = AppScreen.verifyEmail;
+            } else {
+              _currentScreen = AppScreen.home;
+            }
           } else if (_hasSeenOnboarding) {
             // User signed out, go to sign in
             _currentScreen = AppScreen.signin;
@@ -127,14 +134,22 @@ class _AppNavigatorState extends State<AppNavigator> {
 
     // Check if user is already logged in
     if (_authService.currentUser != null) {
-      _currentScreen = AppScreen.home;
+      if (_authService.isCurrentUserPasswordAccount &&
+          !_authService.isCurrentUserEmailVerified) {
+        _currentScreen = AppScreen.verifyEmail;
+      } else {
+        _currentScreen = AppScreen.home;
+      }
       _hasSeenOnboarding = true;
     }
   }
 
   void _navigateTo(AppScreen screen) {
     setState(() {
-      if (screen == AppScreen.home || screen == AppScreen.signin || screen == AppScreen.signup) {
+      if (screen == AppScreen.home ||
+          screen == AppScreen.signin ||
+          screen == AppScreen.signup ||
+          screen == AppScreen.verifyEmail) {
         _hasSeenOnboarding = true;
       }
       _currentScreen = screen;
@@ -155,6 +170,13 @@ class _AppNavigatorState extends State<AppNavigator> {
     });
   }
 
+  void _navigateToOrderSuccess(String orderId) {
+    setState(() {
+      _selectedOrderId = orderId;
+      _currentScreen = AppScreen.orderSuccess;
+    });
+  }
+
   Widget _buildCurrentScreen() {
     switch (_currentScreen) {
       case AppScreen.onboarding:
@@ -165,11 +187,18 @@ class _AppNavigatorState extends State<AppNavigator> {
         return SignInScreen(
           onSignIn: () => _navigateTo(AppScreen.home),
           onSignUp: () => _navigateTo(AppScreen.signup),
+          onEmailVerificationRequired: () => _navigateTo(AppScreen.verifyEmail),
         );
       case AppScreen.signup:
         return SignUpScreen(
           onSignUp: () => _navigateTo(AppScreen.home),
           onSignIn: () => _navigateTo(AppScreen.signin),
+          onEmailVerificationRequired: () => _navigateTo(AppScreen.verifyEmail),
+        );
+      case AppScreen.verifyEmail:
+        return EmailVerificationScreen(
+          onVerified: () => _navigateTo(AppScreen.home),
+          onBackToSignIn: () => _navigateTo(AppScreen.signin),
         );
       case AppScreen.home:
         return HomeScreen(
@@ -195,9 +224,7 @@ class _AppNavigatorState extends State<AppNavigator> {
           onThemeChange: widget.onThemeChange,
         );
       case AppScreen.tryon:
-        return VirtualTryOnScreen(
-          onBack: () => _navigateTo(AppScreen.home),
-        );
+        return VirtualTryOnScreen(onBack: () => _navigateTo(AppScreen.home));
       case AppScreen.wishlist:
         return WishlistScreen(
           onBack: () => _navigateTo(AppScreen.home),
@@ -216,11 +243,18 @@ class _AppNavigatorState extends State<AppNavigator> {
       case AppScreen.checkout:
         return CheckoutScreen(
           onBack: () => _navigateTo(AppScreen.cart),
-          onOrderPlaced: () => _navigateTo(AppScreen.orderHistory),
+          onOrderPlaced: _navigateToOrderSuccess,
+        );
+      case AppScreen.orderSuccess:
+        return OrderSuccessScreen(
+          orderId: _selectedOrderId ?? '',
+          onContinueShopping: () => _navigateTo(AppScreen.home),
+          onViewOrders: () => _navigateTo(AppScreen.orderHistory),
+          onTrackOrder: _navigateToOrderTracking,
         );
       case AppScreen.orderTracking:
         return OrderTrackingScreen(
-          orderId: _selectedOrderId ?? 'ORD-2024-001',
+          orderId: _selectedOrderId ?? '',
           onBack: () => _navigateTo(AppScreen.orderHistory),
         );
     }

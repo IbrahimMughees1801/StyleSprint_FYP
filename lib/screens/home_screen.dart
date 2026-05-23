@@ -3,7 +3,6 @@ import '../widgets/header.dart';
 import '../widgets/hero_banner.dart';
 import '../widgets/category_bar.dart';
 import '../widgets/virtual_tryon_card.dart';
-import '../widgets/store_partners.dart';
 import '../widgets/product_grid.dart';
 import '../widgets/bottom_nav.dart';
 import '../main.dart';
@@ -21,35 +20,30 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           // Scrollable content
           CustomScrollView(
             slivers: [
               // Header
-              SliverToBoxAdapter(
-                child: Header(onNavigate: onNavigate),
-              ),
+              SliverToBoxAdapter(child: Header(onNavigate: onNavigate)),
               // Hero Banner
-              const SliverToBoxAdapter(
-                child: HeroBanner(),
-              ),
+              const SliverToBoxAdapter(child: HeroBanner()),
               // Content sections
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    const SizedBox(height: 24),
-                    const CategoryBar(),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 72),
                     VirtualTryOnCard(
                       onTryNow: () => onNavigate(AppScreen.tryon),
                     ),
-                    const SizedBox(height: 32),
-                    const StorePartners(),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 72),
+                    const CategoryBar(),
+                    const SizedBox(height: 72),
                     ProductGrid(onProductClick: onProductClick),
-                    const SizedBox(height: 140), // Increased padding to prevent overflow on all screens
+                    const SizedBox(height: 128),
                   ]),
                 ),
               ),

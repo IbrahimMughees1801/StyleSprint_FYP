@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+
 import '../main.dart';
 import '../services/firebase_auth_service.dart';
+import '../services/order_service.dart';
+import '../services/wishlist_service.dart';
+import '../theme/app_theme.dart';
 import '../widgets/bottom_nav.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -23,8 +26,29 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isDarkMode = false;
   final _authService = FirebaseAuthService();
+  final _orderService = OrderService.instance;
+  final _wishlistService = WishlistService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _orderService.addListener(_refresh);
+    _wishlistService.addListener(_refresh);
+    _orderService.loadOrders();
+    _wishlistService.load();
+  }
+
+  @override
+  void dispose() {
+    _orderService.removeListener(_refresh);
+    _wishlistService.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
 
   Future<void> _handleSignOut() async {
     final shouldSignOut = await showDialog<bool>(
@@ -45,237 +69,272 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    if (shouldSignOut == true) {
-      try {
-        await _authService.signOut();
-        if (mounted) {
-          widget.onSignOut();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error signing out: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
+    if (shouldSignOut != true) return;
+
+    try {
+      await _authService.signOut();
+      if (mounted) widget.onSignOut();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error signing out: $e'),
+          backgroundColor: AppTheme.red600,
+        ),
+      );
     }
+  }
+
+  void _showSupportSheet() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Help & Support',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                _buildSupportAction(
+                  Icons.mail_outline,
+                  'Email support',
+                  'stylesprint.support@example.com',
+                ),
+                _buildSupportAction(
+                  Icons.local_shipping_outlined,
+                  'Order help',
+                  'Open orders to track or review a purchase.',
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onNavigate?.call(AppScreen.orderHistory);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSupportAction(
+    IconData icon,
+    String title,
+    String subtitle, {
+    VoidCallback? onTap,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      onTap: onTap,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    _isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final user = _authService.currentUser;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
-          // Scrollable content
-          SingleChildScrollView(
-            child: Column(
-              children: [
-                // Header with gradient
-                Container(
+          CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Container(
                   decoration: const BoxDecoration(
-                    gradient: AppTheme.purplePinkGradient,
+                    gradient: AppTheme.atelierDarkGradient,
                   ),
-                  child: Stack(
-                    children: [
-                      // Decorative elements
-                      Positioned(
-                        top: 40,
-                        right: 40,
-                        child: Container(
-                          width: 128,
-                          height: 128,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        left: 40,
-                        child: Container(
-                          width: 160,
-                          height: 160,
-                          decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                  // Content
-                  SafeArea(
+                  child: SafeArea(
+                    bottom: false,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 48, 24, 96),
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 86),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Remove back button since we have bottom nav
-                          const SizedBox(height: 0),
+                          IconButton(
+                            onPressed: widget.onBack,
+                            icon: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
                           Container(
-                            width: 96,
-                            height: 96,
+                            width: 88,
+                            height: 88,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.12),
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withOpacity(0.3), width: 4),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.22),
+                                width: 2,
+                              ),
                             ),
                             child: const Icon(
-                              Icons.person,
-                              size: 48,
+                              Icons.person_outline,
+                              size: 44,
                               color: Colors.white,
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 18),
                           Text(
-                            _authService.currentUser?.displayName ?? 'User',
+                            user?.displayName ?? 'StyleSprint User',
                             style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
                               color: Colors.white,
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Text(
-                            _authService.currentUser?.email ?? 'user@email.com',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white.withOpacity(0.9),
+                            user?.email ?? 'user@email.com',
+                            style: const TextStyle(
+                              color: AppTheme.atelierAccent,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-            // Stats card
-            Transform.translate(
-              offset: const Offset(0, -64),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildStat('12', 'Orders'),
-                      Container(width: 1, height: 40, color: AppTheme.gray200),
-                      _buildStat('8', 'Wishlist'),
-                      Container(width: 1, height: 40, color: AppTheme.gray200),
-                      _buildStat('5', 'Reviews'),
-                    ],
+              SliverToBoxAdapter(
+                child: Transform.translate(
+                  offset: const Offset(0, -48),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: [
+                        _buildStatsCard(),
+                        const SizedBox(height: 18),
+                        _buildMenuItem(
+                          icon: Icons.shopping_bag_outlined,
+                          label: 'My Orders',
+                          description: 'Track and view your orders',
+                          onTap: () =>
+                              widget.onNavigate?.call(AppScreen.orderHistory),
+                        ),
+                        _buildMenuItem(
+                          icon: Icons.favorite_border,
+                          label: 'Wishlist',
+                          description: 'View saved products',
+                          onTap: () =>
+                              widget.onNavigate?.call(AppScreen.wishlist),
+                        ),
+                        _buildMenuItem(
+                          icon: Icons.rate_review_outlined,
+                          label: 'My Reviews',
+                          description: 'Reviews will appear after delivery',
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'No reviews yet. Delivered orders can be reviewed here soon.',
+                                ),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                        ),
+                        _buildMenuItem(
+                          icon: Icons.location_on_outlined,
+                          label: 'Saved Addresses',
+                          description: 'Manage delivery addresses',
+                          onTap: () {},
+                        ),
+                        _buildMenuItem(
+                          icon: Icons.credit_card,
+                          label: 'Payment Methods',
+                          description: 'Cash on delivery and saved cards',
+                          onTap: () {},
+                        ),
+                        _buildThemeToggle(isDarkMode),
+                        _buildMenuItem(
+                          icon: Icons.help_outline,
+                          label: 'Help & Support',
+                          description: 'Get help and contact us',
+                          onTap: _showSupportSheet,
+                        ),
+                        _buildMenuItem(
+                          icon: Icons.logout,
+                          label: 'Sign Out',
+                          description: 'Log out from your account',
+                          destructive: true,
+                          onTap: _handleSignOut,
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Version 1.0.0',
+                          style: TextStyle(
+                            color: AppTheme.gray400,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 118),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            // Menu items
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  _buildMenuItem(
-                    icon: Icons.shopping_bag_outlined,
-                    label: 'My Orders',
-                    description: 'Track and view your orders',
-                    color: AppTheme.blue600,
-                    bgColor: AppTheme.blue600.withOpacity(0.1),
-                    onTap: () => widget.onNavigate?.call(AppScreen.orderHistory),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMenuItem(
-                    icon: Icons.location_on_outlined,
-                    label: 'Saved Addresses',
-                    description: 'Manage delivery addresses',
-                    color: AppTheme.green600,
-                    bgColor: AppTheme.green600.withOpacity(0.1),
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMenuItem(
-                    icon: Icons.credit_card,
-                    label: 'Payment Methods',
-                    description: 'Manage payment options',
-                    color: AppTheme.purple600,
-                    bgColor: AppTheme.purple600.withOpacity(0.1),
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMenuItem(
-                    icon: Icons.notifications_outlined,
-                    label: 'Notifications',
-                    description: 'Manage your preferences',
-                    color: AppTheme.orange600,
-                    bgColor: AppTheme.orange600.withOpacity(0.1),
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 12),
-                  _buildThemeToggle(),
-                  const SizedBox(height: 12),
-                  _buildMenuItem(
-                    icon: Icons.settings_outlined,
-                    label: 'Settings',
-                    description: 'App preferences',
-                    color: AppTheme.gray600,
-                    bgColor: AppTheme.gray100,
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMenuItem(
-                    icon: Icons.help_outline,
-                    label: 'Help & Support',
-                    description: 'Get help and contact us',
-                    color: AppTheme.pink600,
-                    bgColor: AppTheme.pink600.withOpacity(0.1),
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMenuItem(
-                    icon: Icons.logout,
-                    label: 'Sign Out',
-                    description: 'Log out from your account',
-                    color: AppTheme.red600,
-                    bgColor: AppTheme.red600.withOpacity(0.1),
-                    onTap: _handleSignOut,
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Version 1.0.0',
-                    style: TextStyle(
-                      color: AppTheme.gray400,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 100), // Space for bottom navigation
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-          // Bottom Navigation
+            ],
+          ),
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             child: BottomNav(onNavigate: widget.onNavigate ?? (_) {}),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStat('${_orderService.orderCount}', 'Orders'),
+          Container(
+            width: 1,
+            height: 36,
+            color: Theme.of(context).dividerColor,
+          ),
+          _buildStat('${_wishlistService.count}', 'Wishlist'),
+          Container(
+            width: 1,
+            height: 36,
+            color: Theme.of(context).dividerColor,
+          ),
+          _buildStat('0', 'Reviews'),
         ],
       ),
     );
@@ -288,17 +347,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           value,
           style: TextStyle(
             fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).textTheme.bodyLarge?.color,
+            fontWeight: FontWeight.w800,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context).textTheme.bodySmall?.color,
-          ),
+          style: const TextStyle(fontSize: 12, color: AppTheme.gray500),
         ),
       ],
     );
@@ -308,35 +364,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required String label,
     required String description,
-    required Color color,
-    required Color bgColor,
     required VoidCallback onTap,
+    bool destructive = false,
   }) {
-    return GestureDetector(
-      onTap: onTap,
+    final color = destructive
+        ? AppTheme.red600
+        : Theme.of(context).colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: destructive
+                      ? AppTheme.red500.withValues(alpha: 0.1)
+                      : Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.gray500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppTheme.gray400),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeToggle(bool isDarkMode) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+          ),
         ),
         child: Row(
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(16),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(
+                isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -344,94 +465,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    label,
+                    'Dark Mode',
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
-                    description,
-                    style: TextStyle(
+                    isDarkMode
+                        ? 'Switch to light theme'
+                        : 'Switch to dark theme',
+                    style: const TextStyle(
                       fontSize: 12,
-                      color: Theme.of(context).textTheme.bodySmall?.color,
+                      color: AppTheme.gray500,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppTheme.gray400),
+            Switch(
+              value: isDarkMode,
+              onChanged: (value) {
+                widget.onThemeChange?.call(
+                  value ? ThemeMode.dark : ThemeMode.light,
+                );
+              },
+              activeThumbColor: AppTheme.atelierMidnight,
+            ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildThemeToggle() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppTheme.purple600.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              _isDarkMode ? Icons.dark_mode : Icons.light_mode,
-              color: AppTheme.purple600,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Dark Mode',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).textTheme.bodyLarge?.color,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _isDarkMode ? 'Switch to light theme' : 'Switch to dark theme',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).textTheme.bodySmall?.color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: _isDarkMode,
-            onChanged: (value) {
-              widget.onThemeChange?.call(
-                value ? ThemeMode.dark : ThemeMode.light,
-              );
-            },
-            activeColor: AppTheme.purple600,
-          ),
-        ],
       ),
     );
   }
