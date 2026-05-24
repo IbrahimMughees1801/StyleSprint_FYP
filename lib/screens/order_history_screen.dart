@@ -25,6 +25,19 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
 
   List<Order> get _orders => _orderService.orders;
 
+  bool _isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  Color _surfaceLow(BuildContext context) =>
+      _isDark(context) ? const Color(0xFF1A2A3A) : AppTheme.gray100;
+
+  Color _accent(BuildContext context) =>
+      _isDark(context) ? AppTheme.atelierAccent : AppTheme.atelierMidnight;
+
+  Color _mutedText(BuildContext context) =>
+      Theme.of(context).textTheme.bodyMedium?.color ??
+      (_isDark(context) ? AppTheme.gray400 : AppTheme.gray600);
+
   @override
   void initState() {
     super.initState();
@@ -48,7 +61,9 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
     final index = _tabController.index;
     if (index == 0) return _orders; // All
     if (index == 1) {
-      return _orders.where((o) => o.status == 'In Transit').toList();
+      return _orders
+          .where((o) => o.status == 'Order Placed' || o.status == 'In Transit')
+          .toList();
     }
     if (index == 2) {
       return _orders.where((o) => o.status == 'Delivered').toList();
@@ -142,12 +157,12 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
           controller: _tabController,
           isScrollable: true,
           labelColor: Theme.of(context).colorScheme.primary,
-          unselectedLabelColor: AppTheme.gray500,
+          unselectedLabelColor: _mutedText(context),
           indicatorColor: Theme.of(context).colorScheme.primary,
           onTap: (index) => setState(() {}),
           tabs: const [
             Tab(text: 'All'),
-            Tab(text: 'In Transit'),
+            Tab(text: 'Active'),
             Tab(text: 'Delivered'),
             Tab(text: 'Cancelled'),
           ],
@@ -155,29 +170,93 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
       ),
       body: _orderService.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _orderService.error != null
+          : _orderService.error != null && _orders.isEmpty
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(
-                  _orderService.error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppTheme.red500),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.cloud_off_outlined,
+                      color: AppTheme.red500,
+                      size: 42,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _orderService.error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppTheme.red500),
+                    ),
+                    const SizedBox(height: 18),
+                    OutlinedButton.icon(
+                      onPressed: () => _orderService.loadOrders(force: true),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
                 ),
               ),
             )
           : _filteredOrders.isEmpty
           ? _buildEmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: _filteredOrders.length,
-              itemBuilder: (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _buildOrderCard(_filteredOrders[index]),
-                );
-              },
+          : _buildOrdersList(),
+    );
+  }
+
+  Widget _buildOrdersList() {
+    final error = _orderService.error;
+    final hasWarning = error != null && _orders.isNotEmpty;
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(20),
+      itemCount: _filteredOrders.length + (hasWarning ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (hasWarning && index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _buildSyncWarning(error),
+          );
+        }
+
+        final orderIndex = index - (hasWarning ? 1 : 0);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: _buildOrderCard(_filteredOrders[orderIndex]),
+        );
+      },
+    );
+  }
+
+  Widget _buildSyncWarning(String message) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.yellow400.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.yellow400),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.cloud_off_outlined,
+            color: AppTheme.gray900,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppTheme.gray900,
+                fontSize: 13,
+                height: 1.35,
+              ),
             ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -213,7 +292,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
             Text(
               'Your order history will appear here',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: AppTheme.gray600),
+              style: TextStyle(fontSize: 16, color: _mutedText(context)),
             ),
           ],
         ),
@@ -244,10 +323,14 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              spacing: 12,
+              runSpacing: 10,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       _getStatusIcon(order.status),
@@ -309,6 +392,18 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
                             width: 50,
                             height: 50,
                             fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 50,
+                                height: 50,
+                                color: _surfaceLow(context),
+                                child: const Icon(
+                                  Icons.shopping_bag_outlined,
+                                  color: AppTheme.gray400,
+                                  size: 22,
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -318,16 +413,16 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      color: AppTheme.gray100,
+                      color: _surfaceLow(context),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Center(
                       child: Text(
                         '+${order.itemImages.length - 3}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.gray600,
+                          color: _mutedText(context),
                         ),
                       ),
                     ),
@@ -338,17 +433,20 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
             const Divider(),
             const SizedBox(height: 12),
             // Footer row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              spacing: 14,
+              runSpacing: 12,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '${order.itemCount} ${order.itemCount == 1 ? 'Item' : 'Items'}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: AppTheme.gray500,
+                        color: _mutedText(context),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -362,57 +460,54 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
                     ),
                   ],
                 ),
-                Row(
-                  children: [
-                    if (order.status == 'In Transit')
-                      OutlinedButton(
-                        onPressed: () => widget.onOrderClick(order.id),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                            color: AppTheme.atelierMidnight,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Track Order',
-                          style: TextStyle(color: AppTheme.atelierMidnight),
-                        ),
+                if (order.status == 'Order Placed' ||
+                    order.status == 'In Transit')
+                  OutlinedButton(
+                    onPressed: () => widget.onOrderClick(order.id),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _accent(context),
+                      side: BorderSide(color: _accent(context)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    if (order.status == 'Delivered')
-                      OutlinedButton(
-                        onPressed: () => _buyAgain(order),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                            color: AppTheme.atelierMidnight,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Buy Again',
-                          style: TextStyle(color: AppTheme.atelierMidnight),
-                        ),
+                    ),
+                    child: Text(
+                      'Track Order',
+                      style: TextStyle(color: _accent(context)),
+                    ),
+                  ),
+                if (order.status == 'Delivered')
+                  OutlinedButton(
+                    onPressed: () => _buyAgain(order),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _accent(context),
+                      side: BorderSide(color: _accent(context)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    if (order.status != 'In Transit' &&
-                        order.status != 'Delivered')
-                      OutlinedButton(
-                        onPressed: () => widget.onOrderClick(order.id),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppTheme.gray300),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'View Details',
-                          style: TextStyle(color: AppTheme.gray600),
-                        ),
+                    ),
+                    child: Text(
+                      'Buy Again',
+                      style: TextStyle(color: _accent(context)),
+                    ),
+                  ),
+                if (order.status != 'Order Placed' &&
+                    order.status != 'In Transit' &&
+                    order.status != 'Delivered')
+                  OutlinedButton(
+                    onPressed: () => widget.onOrderClick(order.id),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _mutedText(context),
+                      side: BorderSide(color: _mutedText(context)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                  ],
-                ),
+                    ),
+                    child: Text(
+                      'View Details',
+                      style: TextStyle(color: _mutedText(context)),
+                    ),
+                  ),
               ],
             ),
           ],

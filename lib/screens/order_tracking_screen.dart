@@ -24,14 +24,52 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   Order? get _order => _orderService.findById(widget.orderId);
 
   String get _trackingNumber {
-    return 'TRK${widget.orderId.hashCode.abs().toString().padLeft(9, '0')}';
+    final digits = widget.orderId.replaceAll(RegExp(r'\D'), '');
+    if (digits.isNotEmpty) {
+      final padded = digits.padLeft(10, '0');
+      return 'TRK${padded.substring(padded.length - 10)}';
+    }
+
+    final checksum = widget.orderId.codeUnits.fold<int>(
+      0,
+      (sum, unit) => (sum + unit) % 1000000000,
+    );
+    return 'TRK${checksum.toString().padLeft(9, '0')}';
   }
 
   String get _estimatedDelivery {
+    if (_isCancelled) return 'Cancelled';
     final deliveryDate = (_order?.date ?? DateTime.now()).add(
       const Duration(days: 5),
     );
     return _formatDate(deliveryDate);
+  }
+
+  bool get _isCancelled => _order?.status == 'Cancelled';
+
+  IconData get _statusIcon {
+    final status = _order?.status ?? 'In Transit';
+    switch (status) {
+      case 'Order Placed':
+        return Icons.receipt_long;
+      case 'Delivered':
+        return Icons.check_circle_outline;
+      case 'Cancelled':
+        return Icons.cancel_outlined;
+      case 'In Transit':
+      default:
+        return Icons.local_shipping_outlined;
+    }
+  }
+
+  String get _statusTitle {
+    if (_isCancelled) return 'Order Cancelled';
+    return _trackingHistory[_currentStatus]['status'] as String;
+  }
+
+  String get _statusDescription {
+    if (_isCancelled) return 'This order is no longer being delivered';
+    return _trackingHistory[_currentStatus]['description'] as String;
   }
 
   int get _currentStatus {
@@ -42,7 +80,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       case 'Delivered':
         return 4;
       case 'Cancelled':
-        return 0;
+        return 1;
       case 'In Transit':
       default:
         return 2;
@@ -66,6 +104,18 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         'time': index <= completedUntil ? _formatTime(date) : 'Expected',
         'completed': index <= completedUntil,
       };
+    }
+
+    if (_isCancelled) {
+      return [
+        item(0, 'Order Placed', 'Your order was confirmed', orderDate),
+        item(
+          1,
+          'Cancelled',
+          'The order was cancelled',
+          orderDate.add(const Duration(hours: 1)),
+        ),
+      ];
     }
 
     return [
@@ -158,6 +208,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  String _deliveryDetails(Order order) {
+    final details = [
+      order.address,
+      order.city,
+      order.phone,
+    ].where((value) => value.trim().isNotEmpty).join('\n');
+    return details.isEmpty ? 'Delivery details unavailable' : details;
   }
 
   @override
@@ -260,10 +319,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   }
 
   Widget _buildStatusCard() {
+    final isCancelled = _isCancelled;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: AppTheme.atelierDarkGradient,
+        color: isCancelled ? AppTheme.red500 : null,
+        gradient: isCancelled ? null : AppTheme.atelierDarkGradient,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -274,15 +335,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               color: Colors.white,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.local_shipping,
+            child: Icon(
+              _statusIcon,
               size: 48,
-              color: AppTheme.atelierMidnight,
+              color: isCancelled ? AppTheme.red500 : AppTheme.atelierMidnight,
             ),
           ),
           const SizedBox(height: 16),
           Text(
-            _trackingHistory[_currentStatus]['status'],
+            _statusTitle,
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -291,36 +352,40 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            _trackingHistory[_currentStatus]['description'],
+            _statusDescription,
             style: const TextStyle(fontSize: 14, color: Colors.white70),
           ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.schedule, size: 16, color: Colors.white),
-                const SizedBox(width: 8),
-                const Text(
-                  'Estimated Delivery: ',
-                  style: TextStyle(fontSize: 12, color: Colors.white70),
-                ),
-                Text(
-                  _estimatedDelivery,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+          if (!isCancelled) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Icon(Icons.schedule, size: 16, color: Colors.white),
+                  const Text(
+                    'Estimated Delivery:',
+                    style: TextStyle(fontSize: 12, color: Colors.white70),
                   ),
-                ),
-              ],
+                  Text(
+                    _estimatedDelivery,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -548,7 +613,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${order?.address ?? ''}\n${order?.city ?? ''}\n${order?.phone ?? ''}',
+                      order == null ? '' : _deliveryDetails(order),
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppTheme.gray600,

@@ -210,14 +210,14 @@ def main():
     
     if issues:
         print("\n1. Fix the issues listed above")
-        print("2. Refer to ML_SETUP_GUIDE.md for installation instructions")
+        print("2. Refer to READMES/ML_SETUP_GUIDE.md for installation instructions")
         print("3. Run this script again after fixing")
     else:
         print("\n1. ✓ Your environment is ready!")
         print("2. Start learning PyTorch: https://pytorch.org/tutorials")
         print("3. Try the test scripts: test_gpu.py, test_yolo.py, test_opencv.py")
         print("4. Explore YOLO detection: python -c \"from ultralytics import YOLO; YOLO('yolov8n.pt')\"")
-        print("5. Check out ML_QUICK_START.md for daily workflow")
+        print("5. Check out READMES/ML_QUICK_START.md for daily workflow")
     
     print("\n" + "=" * 70)
     

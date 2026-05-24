@@ -10,6 +10,7 @@ class Order {
   final double tax;
   final double total;
   final String paymentMethod;
+  final Map<String, dynamic> paymentDetails;
   final String addressName;
   final String address;
   final String city;
@@ -26,6 +27,7 @@ class Order {
     required this.tax,
     required this.total,
     required this.paymentMethod,
+    this.paymentDetails = const {},
     required this.addressName,
     required this.address,
     required this.city,
@@ -34,6 +36,14 @@ class Order {
   });
 
   String get totalLabel => '\$${total.toStringAsFixed(2)}';
+
+  String get paymentLabel {
+    if (paymentDetails.isEmpty) return paymentMethod;
+    final brand = paymentDetails['brand'] as String? ?? 'Card';
+    final last4 = paymentDetails['last4'] as String? ?? '';
+    if (last4.isEmpty) return paymentMethod;
+    return '$brand ending $last4';
+  }
 
   String get thumbnail => itemImages.isEmpty ? '' : itemImages.first;
 
@@ -55,6 +65,7 @@ class Order {
       'tax': tax,
       'total': total,
       'paymentMethod': paymentMethod,
+      'paymentDetails': paymentDetails,
       'addressName': addressName,
       'address': address,
       'city': city,
@@ -66,6 +77,7 @@ class Order {
   factory Order.fromMap(Map<String, dynamic> map) {
     final rawDate = map['date'];
     final rawItems = map['items'];
+    final rawPaymentDetails = map['paymentDetails'];
     final items = rawItems is List
         ? rawItems
               .whereType<Map>()
@@ -111,6 +123,9 @@ class Order {
       tax: readDouble('tax'),
       total: readDouble('total'),
       paymentMethod: map['paymentMethod'] as String? ?? 'Cash on Delivery',
+      paymentDetails: rawPaymentDetails is Map
+          ? Map<String, dynamic>.from(rawPaymentDetails)
+          : const {},
       addressName: map['addressName'] as String? ?? 'Delivery Address',
       address: map['address'] as String? ?? '',
       city: map['city'] as String? ?? '',

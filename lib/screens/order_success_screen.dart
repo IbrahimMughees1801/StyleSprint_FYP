@@ -27,6 +27,28 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
 
   Order? get _order => _orderService.findById(widget.orderId);
 
+  bool _isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  Color _surface(BuildContext context) => Theme.of(context).colorScheme.surface;
+
+  Color _border(BuildContext context) =>
+      _isDark(context) ? AppTheme.gray700 : AppTheme.gray200;
+
+  Color _accent(BuildContext context) =>
+      _isDark(context) ? AppTheme.atelierAccent : AppTheme.atelierMidnight;
+
+  Color _accentForeground(BuildContext context) =>
+      _isDark(context) ? AppTheme.atelierDark : Colors.white;
+
+  Color _strongText(BuildContext context) =>
+      Theme.of(context).textTheme.bodyLarge?.color ??
+      (_isDark(context) ? Colors.white : AppTheme.gray900);
+
+  Color _mutedText(BuildContext context) =>
+      Theme.of(context).textTheme.bodyMedium?.color ??
+      (_isDark(context) ? AppTheme.gray400 : AppTheme.gray600);
+
   @override
   void initState() {
     super.initState();
@@ -48,7 +70,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
     final order = _order;
 
     return Scaffold(
-      backgroundColor: AppTheme.atelierBackground,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -60,30 +82,34 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                 child: Container(
                   width: 92,
                   height: 92,
-                  decoration: const BoxDecoration(
-                    color: AppTheme.atelierMidnight,
+                  decoration: BoxDecoration(
+                    color: _accent(context),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.check, color: Colors.white, size: 52),
+                  child: Icon(
+                    Icons.check,
+                    color: _accentForeground(context),
+                    size: 52,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Order Confirmed',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
-                  color: AppTheme.gray900,
+                  color: _strongText(context),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 widget.orderId,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: AppTheme.gray500,
+                  color: _mutedText(context),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -105,8 +131,8 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                 icon: const Icon(Icons.receipt_long_outlined),
                 label: const Text('View Orders'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.atelierMidnight,
-                  side: const BorderSide(color: AppTheme.atelierMidnight),
+                  foregroundColor: _accent(context),
+                  side: BorderSide(color: _accent(context)),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -129,9 +155,9 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppTheme.atelierSurface,
+        color: _surface(context),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.gray200),
+        border: Border.all(color: _border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,22 +166,22 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
           const SizedBox(height: 12),
           _buildRow('Items', '${order?.itemCount ?? 0}'),
           const SizedBox(height: 12),
-          _buildRow('Payment', order?.paymentMethod ?? 'Payment selected'),
+          _buildRow('Payment', order?.paymentLabel ?? 'Payment selected'),
           const SizedBox(height: 12),
           _buildRow('Total', order?.totalLabel ?? '--'),
           if (order != null) ...[
             const Divider(height: 28),
-            const Text(
+            Text(
               'Delivery',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                color: AppTheme.gray900,
+                color: _strongText(context),
               ),
             ),
             const SizedBox(height: 8),
             Text(
               '${order.addressName}\n${order.phone}\n${order.address}\n${order.city}',
-              style: const TextStyle(color: AppTheme.gray600, height: 1.45),
+              style: TextStyle(color: _mutedText(context), height: 1.45),
             ),
           ],
         ],
@@ -200,15 +226,15 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppTheme.gray600)),
+        Text(label, style: TextStyle(color: _mutedText(context))),
         const SizedBox(width: 16),
         Flexible(
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: AppTheme.gray900,
+              color: _strongText(context),
             ),
           ),
         ),
@@ -223,11 +249,11 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.atelierMidnight,
+        color: _accent(context),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.atelierMidnight.withValues(alpha: 0.18),
+            color: _accent(context).withValues(alpha: 0.18),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -235,11 +261,11 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
       ),
       child: ElevatedButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon, color: Colors.white),
+        icon: Icon(icon, color: _accentForeground(context)),
         label: Text(label),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
+          foregroundColor: _accentForeground(context),
           shadowColor: Colors.transparent,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(

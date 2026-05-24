@@ -36,9 +36,11 @@ class CartService extends ChangeNotifier {
     );
 
     if (index == -1) {
-      _items.add(item.copyWith(quantity: item.quantity.clamp(1, 99)));
+      _items.add(item.copyWith(quantity: item.quantity.clamp(1, 99).toInt()));
     } else {
-      final quantity = (_items[index].quantity + item.quantity).clamp(1, 99);
+      final quantity = (_items[index].quantity + item.quantity)
+          .clamp(1, 99)
+          .toInt();
       _items[index] = _items[index].copyWith(quantity: quantity);
     }
 
@@ -49,7 +51,7 @@ class CartService extends ChangeNotifier {
     final index = _items.indexWhere((item) => item.lineId == lineId);
     if (index == -1) return;
 
-    final quantity = (_items[index].quantity + delta).clamp(1, 99);
+    final quantity = (_items[index].quantity + delta).clamp(1, 99).toInt();
     _items[index] = _items[index].copyWith(quantity: quantity);
     notifyListeners();
   }

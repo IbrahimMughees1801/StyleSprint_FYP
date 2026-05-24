@@ -48,7 +48,7 @@ if (Test-Path ".\ml_env\Scripts\Activate.ps1") {
         Write-Host "`nNext steps:" -ForegroundColor Cyan
         Write-Host "1. Run this script again: .\setup_ml_env.ps1"
         Write-Host "2. Install PyTorch: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118"
-        Write-Host "3. Install other packages (see ML_SETUP_GUIDE.md)`n"
+        Write-Host "3. Install other packages (see READMES/ML_SETUP_GUIDE.md)`n"
     } else {
         Write-Host "✗ Failed to create virtual environment" -ForegroundColor Red
         Write-Host "Make sure Python is installed and in PATH`n" -ForegroundColor Yellow

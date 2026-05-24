@@ -71,6 +71,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String get _selectedPayment =>
       _paymentMethods[_selectedPaymentIndex]['name'] as String;
 
+  bool _isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  Color _pageBackground(BuildContext context) =>
+      Theme.of(context).scaffoldBackgroundColor;
+
+  Color _surface(BuildContext context) => Theme.of(context).colorScheme.surface;
+
+  Color _surfaceLow(BuildContext context) =>
+      _isDark(context) ? const Color(0xFF1A2A3A) : AppTheme.atelierSurfaceLow;
+
+  Color _border(BuildContext context) =>
+      _isDark(context) ? AppTheme.gray700 : AppTheme.gray200;
+
+  Color _accent(BuildContext context) =>
+      _isDark(context) ? AppTheme.atelierAccent : AppTheme.atelierMidnight;
+
+  Color _accentForeground(BuildContext context) =>
+      _isDark(context) ? AppTheme.atelierDark : Colors.white;
+
+  Color _strongText(BuildContext context) =>
+      Theme.of(context).textTheme.bodyLarge?.color ??
+      (_isDark(context) ? Colors.white : AppTheme.gray900);
+
+  Color _mutedText(BuildContext context) =>
+      Theme.of(context).textTheme.bodyMedium?.color ??
+      (_isDark(context) ? AppTheme.gray400 : AppTheme.gray600);
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -114,6 +142,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         tax: _tax,
         total: _total,
         paymentMethod: _selectedPayment,
+        paymentDetails: _cardPaymentDetails(),
         address: {
           'name': _nameController.text.trim(),
           'address': _addressController.text.trim(),
@@ -140,18 +169,49 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
+  Map<String, dynamic> _cardPaymentDetails() {
+    if (!_isCardSelected) return const {};
+    final digits = _cardNumberController.text.replaceAll(RegExp(r'\D'), '');
+    final last4 = digits.length >= 4 ? digits.substring(digits.length - 4) : '';
+    return {
+      'type': 'card',
+      'brand': _cardBrand(digits),
+      'last4': last4,
+      'cardholderName': _cardNameController.text.trim(),
+      'expiry': _expiryController.text.trim(),
+      'demoOnly': true,
+    };
+  }
+
+  String _cardBrand(String digits) {
+    if (digits.startsWith('4')) return 'Visa';
+    if (digits.startsWith('5')) return 'Mastercard';
+    if (digits.startsWith('3')) return 'Amex';
+    if (digits.startsWith('6')) return 'Discover';
+    return 'Card';
+  }
+
+  String _cardSummary() {
+    final details = _cardPaymentDetails();
+    final last4 = details['last4'] as String? ?? '';
+    final brand = details['brand'] as String? ?? 'Card';
+    final expiry = details['expiry'] as String? ?? '';
+    if (last4.isEmpty) return 'Card details saved for this demo order.';
+    return '$brand ending $last4${expiry.isEmpty ? '' : ' | Expires $expiry'}';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_cartItems.isEmpty) {
       return Scaffold(
-        backgroundColor: AppTheme.atelierBackground,
+        backgroundColor: _pageBackground(context),
         appBar: _buildAppBar(),
         body: const Center(child: Text('Your cart is empty.')),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.atelierBackground,
+      backgroundColor: _pageBackground(context),
       appBar: _buildAppBar(),
       body: Column(
         children: [
@@ -170,7 +230,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: AppTheme.atelierBackground,
+      backgroundColor: _pageBackground(context),
       elevation: 0,
       leading: IconButton(
         icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
@@ -190,7 +250,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget _buildStepIndicator() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      color: AppTheme.atelierBackground,
+      color: _pageBackground(context),
       child: Row(
         children: [
           _buildStepCircle(0, 'Address', Icons.location_on_outlined),
@@ -205,18 +265,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Widget _buildStepCircle(int step, String label, IconData icon) {
     final isActive = _currentStep >= step;
+    final accent = _accent(context);
     return Column(
       children: [
         Container(
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: isActive ? AppTheme.atelierMidnight : AppTheme.gray200,
+            color: isActive ? accent : _surfaceLow(context),
             shape: BoxShape.circle,
           ),
           child: Icon(
             icon,
-            color: isActive ? Colors.white : AppTheme.gray400,
+            color: isActive ? _accentForeground(context) : _mutedText(context),
             size: 20,
           ),
         ),
@@ -226,7 +287,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-            color: isActive ? AppTheme.atelierMidnight : AppTheme.gray400,
+            color: isActive ? accent : _mutedText(context),
           ),
         ),
       ],
@@ -239,7 +300,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Container(
         height: 2,
         margin: const EdgeInsets.only(bottom: 24),
-        color: isActive ? AppTheme.atelierMidnight : AppTheme.gray200,
+        color: isActive ? _accent(context) : _surfaceLow(context),
       ),
     );
   }
@@ -263,18 +324,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Delivery Details',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: AppTheme.gray900,
+              color: _strongText(context),
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Enter the name, address, and contact number for this order.',
-            style: TextStyle(color: AppTheme.gray600),
+            style: TextStyle(color: _mutedText(context)),
           ),
           const SizedBox(height: 18),
           _buildTextField(
@@ -282,8 +343,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             label: 'Full name',
             icon: Icons.person_outline,
             textInputAction: TextInputAction.next,
-            validator: (value) =>
-                _required(value, 'Enter the receiver name'),
+            validator: (value) => _required(value, 'Enter the receiver name'),
           ),
           const SizedBox(height: 14),
           _buildTextField(
@@ -328,12 +388,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Payment Method',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: AppTheme.gray900,
+            color: _strongText(context),
           ),
         ),
         const SizedBox(height: 16),
@@ -343,10 +403,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             child: _buildPaymentCard(entry.value, entry.key),
           );
         }),
-        if (_isCardSelected) ...[
-          const SizedBox(height: 6),
-          _buildCardForm(),
-        ],
+        if (_isCardSelected) ...[const SizedBox(height: 6), _buildCardForm()],
       ],
     );
   }
@@ -361,10 +418,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppTheme.atelierSurface,
+          color: _surface(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppTheme.atelierMidnight : AppTheme.gray200,
+            color: isSelected ? _accent(context) : _border(context),
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -374,13 +431,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppTheme.atelierSurfaceLow,
+                color: _surfaceLow(context),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                method['icon'] as IconData,
-                color: AppTheme.atelierMidnight,
-              ),
+              child: Icon(method['icon'] as IconData, color: _accent(context)),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -389,19 +443,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 children: [
                   Text(
                     method['name'] as String,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.gray900,
+                      color: _strongText(context),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     method['subtitle'] as String,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.gray500,
-                    ),
+                    style: TextStyle(fontSize: 12, color: _mutedText(context)),
                   ),
                 ],
               ),
@@ -410,7 +461,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               isSelected
                   ? Icons.check_circle
                   : Icons.radio_button_unchecked_outlined,
-              color: isSelected ? AppTheme.atelierMidnight : AppTheme.gray400,
+              color: isSelected ? _accent(context) : _mutedText(context),
             ),
           ],
         ),
@@ -424,9 +475,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppTheme.atelierSurface,
+          color: _surface(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.gray200),
+          border: Border.all(color: _border(context)),
         ),
         child: Column(
           children: [
@@ -499,12 +550,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Confirm Order',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: AppTheme.gray900,
+            color: _strongText(context),
           ),
         ),
         const SizedBox(height: 16),
@@ -534,11 +585,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
             Text(
               _isCardSelected
-                  ? 'Card details captured for the demo order.'
+                  ? _cardSummary()
                   : _selectedPayment == 'Cash on Delivery'
                   ? 'Collect payment when the order is delivered.'
                   : 'Wallet payment selected for this demo order.',
-              style: const TextStyle(color: AppTheme.gray600),
+              style: TextStyle(color: _mutedText(context)),
             ),
           ],
         ),
@@ -565,7 +616,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   errorWidget: (context, url, error) => Container(
                     width: 60,
                     height: 60,
-                    color: AppTheme.gray100,
+                    color: _surfaceLow(context),
                     child: const Icon(Icons.image_not_supported_outlined),
                   ),
                 ),
@@ -577,18 +628,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   children: [
                     Text(
                       item.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
+                        color: _strongText(context),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       'Qty ${item.quantity} | Size: ${item.size} | Color: ${item.color}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: AppTheme.gray500,
+                        color: _mutedText(context),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -598,9 +650,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
               Text(
                 '\$${(item.price * item.quantity).toStringAsFixed(2)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
+                  color: _strongText(context),
                 ),
               ),
             ],
@@ -618,23 +671,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.atelierSurface,
+        color: _surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.gray200),
+        border: Border.all(color: _border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: AppTheme.atelierMidnight),
+              Icon(icon, size: 18, color: _accent(context)),
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.gray900,
+                  color: _strongText(context),
                 ),
               ),
             ],
@@ -650,7 +703,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.atelierSurface,
+        color: _surface(context),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
@@ -674,15 +727,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Total',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _strongText(context),
+                  ),
                 ),
                 Text(
                   '\$${_total.toStringAsFixed(2)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
+                    color: _strongText(context),
                   ),
                 ),
               ],
@@ -697,18 +755,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           ? null
                           : () => setState(() => _currentStep--),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppTheme.atelierMidnight),
+                        foregroundColor: _accent(context),
+                        side: BorderSide(color: _accent(context)),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Back',
-                        style: TextStyle(
-                          color: AppTheme.atelierMidnight,
-                          fontSize: 16,
-                        ),
+                        style: TextStyle(color: _accent(context), fontSize: 16),
                       ),
                     ),
                   ),
@@ -718,7 +774,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   flex: 2,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AppTheme.atelierMidnight,
+                      color: _accent(context),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: ElevatedButton(
@@ -732,22 +788,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: _isPlacingOrder
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.4,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
+                                  _accentForeground(context),
                                 ),
                               ),
                             )
                           : Text(
-                              _currentStep < 2
-                                  ? 'Continue'
-                                  : 'Confirm Order',
-                              style: const TextStyle(
-                                color: Colors.white,
+                              _currentStep < 2 ? 'Continue' : 'Confirm Order',
+                              style: TextStyle(
+                                color: _accentForeground(context),
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -782,22 +836,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       maxLines: maxLines,
       obscureText: obscureText,
       validator: validator,
+      style: TextStyle(color: _strongText(context)),
+      cursorColor: _accent(context),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon),
+        labelStyle: TextStyle(color: _mutedText(context)),
+        floatingLabelStyle: TextStyle(color: _accent(context)),
+        prefixIcon: Icon(icon, color: _mutedText(context)),
         filled: true,
-        fillColor: AppTheme.atelierSurface,
+        fillColor: _surface(context),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppTheme.gray200),
+          borderSide: BorderSide(color: _border(context)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppTheme.gray200),
+          borderSide: BorderSide(color: _border(context)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppTheme.atelierMidnight),
+          borderSide: BorderSide(color: _accent(context), width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppTheme.red500),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppTheme.red500, width: 1.5),
         ),
       ),
     );
@@ -807,10 +873,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: AppTheme.gray600)),
+        Text(label, style: TextStyle(color: _mutedText(context))),
         Text(
           '\$${amount.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: _strongText(context),
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );

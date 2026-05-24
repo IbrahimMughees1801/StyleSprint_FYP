@@ -40,5 +40,5 @@ API docs: `http://localhost:8000/docs`
 	`lib/services/virtual_tryon_service.dart`.
 - Stage 2 (PF-AFN) is wired locally; Stage 3 (DCI-VTON) is being finalized.
 
-See [backend/README.md](backend/README.md) for detailed backend setup and
+See [backend/README.md](../backend/README.md) for detailed backend setup and
 pipeline instructions.

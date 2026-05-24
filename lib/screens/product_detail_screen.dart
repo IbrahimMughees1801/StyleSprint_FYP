@@ -37,6 +37,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   String _selectedSize = 'M';
   int _selectedColorIndex = 0;
   int _selectedImageIndex = 0;
+  int _quantity = 1;
   bool _isFavorite = false;
 
   final SupabaseProductsService _productsService = SupabaseProductsService();
@@ -47,6 +48,29 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   final String? _displayOriginalPrice = null;
   final double _displayRating = 4.7;
+
+  bool _isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  Color _surfaceLow(BuildContext context) =>
+      _isDark(context) ? const Color(0xFF1A2A3A) : AppTheme.atelierSurfaceLow;
+
+  Color _border(BuildContext context) =>
+      _isDark(context) ? AppTheme.gray700 : AppTheme.gray200;
+
+  Color _accent(BuildContext context) =>
+      _isDark(context) ? AppTheme.atelierAccent : AppTheme.atelierMidnight;
+
+  Color _accentForeground(BuildContext context) =>
+      _isDark(context) ? AppTheme.atelierDark : Colors.white;
+
+  Color _strongText(BuildContext context) =>
+      Theme.of(context).textTheme.bodyLarge?.color ??
+      (_isDark(context) ? Colors.white : AppTheme.gray900);
+
+  Color _mutedText(BuildContext context) =>
+      Theme.of(context).textTheme.bodyMedium?.color ??
+      (_isDark(context) ? AppTheme.gray400 : AppTheme.gray600);
 
   String get _selectedColorName {
     return _colors[_selectedColorIndex]['name'] as String;
@@ -122,7 +146,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         image: _selectedProductImageUrl(product),
         size: _selectedSize,
         color: _selectedColorName,
-        quantity: 1,
+        quantity: _quantity,
       ),
     );
 
@@ -134,7 +158,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '${product.name} added to cart - $_selectedSize, $_selectedColorName',
+          'Added $_quantity x ${product.name} - $_selectedSize, $_selectedColorName',
         ),
         action: SnackBarAction(
           label: 'View',
@@ -160,6 +184,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
+  void _updateQuantity(int delta) {
+    setState(() {
+      _quantity = (_quantity + delta).clamp(1, 9).toInt();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoadingProduct) {
@@ -168,10 +198,43 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
     if (_productError != null) {
       return Scaffold(
-        body: Center(
-          child: Text(
-            _productError!,
-            style: const TextStyle(color: AppTheme.red500),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: AppTheme.red500,
+                    size: 42,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _productError!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppTheme.red500),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      OutlinedButton(
+                        onPressed: widget.onBack,
+                        child: const Text('Back'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: _loadProduct,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       );
@@ -231,14 +294,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     children: [
                       if (selectedImageUrl != null)
                         Container(
-                          color: AppTheme.atelierSurfaceLow,
+                          color: _surfaceLow(context),
                           child: CachedNetworkImage(
                             imageUrl: selectedImageUrl,
                             fit: BoxFit.contain,
                             placeholder: (context, url) =>
-                                Container(color: AppTheme.gray100),
+                                Container(color: _surfaceLow(context)),
                             errorWidget: (context, url, error) => Container(
-                              color: AppTheme.gray100,
+                              color: _surfaceLow(context),
                               child: const Icon(
                                 Icons.image_not_supported_outlined,
                               ),
@@ -246,7 +309,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           ),
                         )
                       else
-                        Container(color: AppTheme.gray100),
+                        Container(color: _surfaceLow(context)),
                       if ((product?.tryOnReady ?? false) && product != null)
                         Positioned(
                           bottom: 24,
@@ -255,13 +318,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           child: Center(
                             child: Container(
                               decoration: BoxDecoration(
-                                color: AppTheme.atelierMidnight,
+                                color: _accent(context),
                                 borderRadius: BorderRadius.circular(14),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppTheme.atelierMidnight.withValues(
-                                      alpha: 0.24,
-                                    ),
+                                    color: _accent(
+                                      context,
+                                    ).withValues(alpha: 0.24),
                                     blurRadius: 20,
                                     offset: const Offset(0, 10),
                                   ),
@@ -272,20 +335,21 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   showDialog(
                                     context: context,
                                     builder: (context) => VirtualTryOnDialog(
-                                      productImageUrl:
-                                          _selectedProductImageUrl(product),
+                                      productImageUrl: _selectedProductImageUrl(
+                                        product,
+                                      ),
                                       productName: product.name,
                                     ),
                                   );
                                 },
-                                icon: const Icon(
+                                icon: Icon(
                                   Icons.auto_awesome,
-                                  color: Colors.white,
+                                  color: _accentForeground(context),
                                 ),
-                                label: const Text(
+                                label: Text(
                                   'Try This On',
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: _accentForeground(context),
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -323,8 +387,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         children: [
                           Text(
                             (product?.brand ?? 'StyleSprint').toUpperCase(),
-                            style: const TextStyle(
-                              color: AppTheme.gray600,
+                            style: TextStyle(
+                              color: _mutedText(context),
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
@@ -344,10 +408,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              const Text(
+                              Text(
                                 '(234 reviews)',
                                 style: TextStyle(
-                                  color: AppTheme.gray500,
+                                  color: _mutedText(context),
                                   fontSize: 14,
                                 ),
                               ),
@@ -368,10 +432,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         children: [
                           Text(
                             '\$${(product?.price ?? 49.99).toStringAsFixed(2)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
-                              color: AppTheme.atelierMidnight,
+                              color: _accent(context),
                             ),
                           ),
                           if (_displayOriginalPrice != null) ...[
@@ -408,18 +472,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                       const SizedBox(height: 24),
                       // Color selection
-                      const Text(
+                      Text(
                         'Select Color',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
+                          color: _strongText(context),
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _selectedColorName,
-                        style: const TextStyle(
-                          color: AppTheme.gray600,
+                        style: TextStyle(
+                          color: _mutedText(context),
                           fontSize: 13,
                         ),
                       ),
@@ -444,39 +509,54 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 shape: BoxShape.circle,
                                 border: Border.all(
                                   color: isSelected
-                                      ? AppTheme.atelierMidnight
-                                      : AppTheme.gray200,
+                                      ? _accent(context)
+                                      : _border(context),
                                   width: isSelected ? 3 : 2,
                                 ),
                               ),
-                              child: colorData['name'] == 'White'
-                                  ? DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: AppTheme.gray300,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  if (colorData['name'] == 'White')
+                                    Positioned.fill(
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: AppTheme.gray300,
+                                          ),
                                         ),
                                       ),
-                                    )
-                                  : null,
+                                    ),
+                                  if (isSelected)
+                                    Icon(
+                                      Icons.check,
+                                      size: 18,
+                                      color: colorData['name'] == 'White'
+                                          ? _accent(context)
+                                          : Colors.white,
+                                    ),
+                                ],
+                              ),
                             ),
                           );
                         }),
                       ),
                       const SizedBox(height: 24),
                       // Size selection
-                      const Text(
+                      Text(
                         'Select Size',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
+                          color: _strongText(context),
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _selectedSize,
-                        style: const TextStyle(
-                          color: AppTheme.gray600,
+                        style: TextStyle(
+                          color: _mutedText(context),
                           fontSize: 13,
                         ),
                       ),
@@ -499,12 +579,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? AppTheme.atelierSurfaceLow
+                                    ? _surfaceLow(context)
                                     : Colors.transparent,
                                 border: Border.all(
                                   color: isSelected
-                                      ? AppTheme.atelierMidnight
-                                      : AppTheme.gray200,
+                                      ? _accent(context)
+                                      : _border(context),
                                   width: 2,
                                 ),
                                 borderRadius: BorderRadius.circular(16),
@@ -513,8 +593,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 size,
                                 style: TextStyle(
                                   color: isSelected
-                                      ? AppTheme.atelierMidnight
-                                      : AppTheme.gray700,
+                                      ? _accent(context)
+                                      : _strongText(context),
                                   fontWeight: isSelected
                                       ? FontWeight.w600
                                       : FontWeight.normal,
@@ -525,20 +605,52 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         }).toList(),
                       ),
                       const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Quantity',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: _strongText(context),
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Add up to 9 at once',
+                                  style: TextStyle(
+                                    color: _mutedText(context),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          _buildQuantityStepper(),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
                       // Description
-                      const Text(
+                      Text(
                         'Description',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
+                          color: _strongText(context),
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(
                         product?.description ??
                             'Premium quality ${(product?.name ?? 'product').toLowerCase()} made with high-quality materials. Features a modern fit and comfortable design perfect for everyday wear. Available in multiple colors and sizes to suit your style.',
-                        style: const TextStyle(
-                          color: AppTheme.gray600,
+                        style: TextStyle(
+                          color: _mutedText(context),
                           height: 1.6,
                         ),
                       ),
@@ -592,8 +704,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         icon: const Icon(Icons.shopping_cart_outlined),
                         label: const Text('Add to Cart'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.atelierMidnight,
-                          foregroundColor: Colors.white,
+                          backgroundColor: _accent(context),
+                          foregroundColor: _accentForeground(context),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -602,30 +714,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.atelierSurface,
-                        border: Border.all(color: AppTheme.atelierMidnight),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: ElevatedButton(
+                    Expanded(
+                      child: OutlinedButton(
                         onPressed: () => _addToCart(goToCheckout: true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 16,
-                          ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _accent(context),
+                          side: BorderSide(color: _accent(context)),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text(
-                          'Buy Now',
-                          style: TextStyle(
-                            color: AppTheme.atelierMidnight,
-                            fontWeight: FontWeight.w600,
+                        child: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Buy Now',
+                            style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),
                       ),
@@ -646,8 +750,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       children: [
         Text(
           '${selectedIndex + 1} of ${imageUrls.length} photos',
-          style: const TextStyle(
-            color: AppTheme.gray600,
+          style: TextStyle(
+            color: _mutedText(context),
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
@@ -673,17 +777,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: isSelected
-                          ? AppTheme.atelierMidnight
-                          : AppTheme.gray200,
+                      color: isSelected ? _accent(context) : _border(context),
                       width: isSelected ? 3 : 1,
                     ),
                     boxShadow: isSelected
                         ? [
                             BoxShadow(
-                              color: AppTheme.atelierMidnight.withValues(
-                                alpha: 0.14,
-                              ),
+                              color: _accent(context).withValues(alpha: 0.14),
                               blurRadius: 14,
                               offset: const Offset(0, 6),
                             ),
@@ -696,9 +796,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       imageUrl: imageUrls[index],
                       fit: BoxFit.cover,
                       placeholder: (context, url) =>
-                          Container(color: AppTheme.gray100),
+                          Container(color: _surfaceLow(context)),
                       errorWidget: (context, url, error) => Container(
-                        color: AppTheme.gray100,
+                        color: _surfaceLow(context),
                         child: const Icon(Icons.image_not_supported_outlined),
                       ),
                     ),
@@ -712,21 +812,65 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
+  Widget _buildQuantityStepper() {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: _surfaceLow(context),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _border(context)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Decrease quantity',
+            onPressed: _quantity == 1 ? null : () => _updateQuantity(-1),
+            icon: const Icon(Icons.remove, size: 18),
+            color: _accent(context),
+            disabledColor: AppTheme.gray400,
+            constraints: const BoxConstraints.tightFor(width: 42, height: 42),
+          ),
+          SizedBox(
+            width: 28,
+            child: Text(
+              '$_quantity',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _strongText(context),
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Increase quantity',
+            onPressed: _quantity == 9 ? null : () => _updateQuantity(1),
+            icon: const Icon(Icons.add, size: 18),
+            color: _accent(context),
+            disabledColor: AppTheme.gray400,
+            constraints: const BoxConstraints.tightFor(width: 42, height: 42),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFeatureBox(IconData icon, String label) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppTheme.gray50,
+          color: _surfaceLow(context),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           children: [
-            Icon(icon, color: AppTheme.atelierMidnight, size: 24),
+            Icon(icon, color: _accent(context), size: 24),
             const SizedBox(height: 8),
             Text(
               label,
-              style: const TextStyle(fontSize: 11, color: AppTheme.gray600),
+              style: TextStyle(fontSize: 11, color: _mutedText(context)),
               textAlign: TextAlign.center,
             ),
           ],

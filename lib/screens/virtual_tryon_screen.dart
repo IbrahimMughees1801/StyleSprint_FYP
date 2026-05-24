@@ -41,6 +41,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   Uint8List? _capturedImageBytes;
   Uint8List? _resultImageBytes;
   bool _cameraActive = false;
+  bool _isReviewingCapturedPhoto = false;
   bool _isCameraInitializing = false;
   bool _isProcessingTryOn = false;
   CameraLensDirection _preferredLensDirection = CameraLensDirection.front;
@@ -90,7 +91,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   }) async {
     if (_isCameraInitializing) return;
 
-    if (kIsWeb) {
+    if (preferredLensDirection == null) {
       await _pickFromCamera();
       return;
     }
@@ -108,10 +109,8 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         throw Exception('No camera was found on this device.');
       }
 
-      final direction = preferredLensDirection ?? _preferredLensDirection;
-
       final camera = _availableCameras.firstWhere(
-        (c) => c.lensDirection == direction,
+        (c) => c.lensDirection == preferredLensDirection,
         orElse: () => _availableCameras.first,
       );
 
@@ -136,6 +135,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         _capturedImageBytes = null;
         _resultImageBytes = null;
         _cameraActive = true;
+        _isReviewingCapturedPhoto = false;
         _preferredLensDirection = camera.lensDirection;
         _isCameraInitializing = false;
       });
@@ -187,14 +187,14 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       setState(() {
         _capturedImageBytes = photoBytes;
         _resultImageBytes = null;
+        _isReviewingCapturedPhoto = true;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Photo captured! Select a product to try on.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      await _cameraController?.dispose();
+      if (!mounted) return;
+      setState(() {
+        _cameraController = null;
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -223,6 +223,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
           _capturedImageBytes = photoBytes;
           _resultImageBytes = null;
           _cameraActive = true;
+          _isReviewingCapturedPhoto = true;
         });
       }
     } catch (e) {
@@ -251,6 +252,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
           _capturedImageBytes = photoBytes;
           _resultImageBytes = null;
           _cameraActive = true;
+          _isReviewingCapturedPhoto = true;
         });
       }
     } catch (e) {
@@ -271,6 +273,16 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Capture or select your photo first.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (_isReviewingCapturedPhoto) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Use this photo before starting try-on.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -345,6 +357,22 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     }
   }
 
+  void _useCapturedPhoto() {
+    setState(() {
+      _isReviewingCapturedPhoto = false;
+    });
+  }
+
+  Future<void> _retakePhoto() async {
+    setState(() {
+      _capturedImageBytes = null;
+      _resultImageBytes = null;
+      _isReviewingCapturedPhoto = false;
+      _cameraActive = false;
+    });
+    await _pickFromCamera();
+  }
+
   void _showTryOnOptions() {
     showDialog(
       context: context,
@@ -365,7 +393,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
             _buildOptionButton(
               icon: Icons.camera_alt,
               label: 'Open Camera',
-              description: 'Open live camera preview',
+              description: 'Use your camera app, then confirm or retake',
               gradient: AppTheme.atelierDarkGradient,
               onTap: () async {
                 Navigator.pop(context);
@@ -939,7 +967,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 120,
+            bottom: 52,
             child: Center(
               child: GestureDetector(
                 onTap: _capturePhoto,
@@ -963,7 +991,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         if (_cameraController != null && _cameraController!.value.isInitialized)
           Positioned(
             right: 20,
-            bottom: 120,
+            bottom: 68,
             child: FloatingActionButton.small(
               heroTag: 'swap-camera',
               onPressed: _switchCamera,
@@ -976,6 +1004,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   }
 
   Widget _buildBottomControls() {
+    if (_isReviewingCapturedPhoto && _capturedImageBytes != null) {
+      return _buildPhotoReviewControls();
+    }
+
     ProductPhoto? selectedProduct;
     if (_selectedProductId != null) {
       for (final product in _products) {
@@ -1126,6 +1158,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                                 _capturedImageBytes = null;
                                 _resultImageBytes = null;
                                 _selectedProductId = null;
+                                _isReviewingCapturedPhoto = false;
                                 _cameraActive = false;
                               });
                             },
@@ -1180,6 +1213,85 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoReviewControls() {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.transparent, Colors.black.withValues(alpha: 0.92)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Use this photo?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Choose this image for try-on or take another shot.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _atelierMuted, fontSize: 13),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _retakePhoto,
+                      icon: const Icon(Icons.photo_camera_outlined),
+                      label: const Text('Take Again'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.28),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _useCapturedPhoto,
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text('Use Photo'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _atelierAccent,
+                        foregroundColor: _atelierBg,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
                       ),
                     ),

@@ -24,6 +24,18 @@ class _WishlistScreenState extends State<WishlistScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
+  bool _isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  Color _surfaceLow(BuildContext context) =>
+      _isDark(context) ? const Color(0xFF1A2A3A) : AppTheme.gray100;
+
+  Color _accent(BuildContext context) =>
+      _isDark(context) ? AppTheme.atelierAccent : AppTheme.atelierMidnight;
+
+  Color _accentForeground(BuildContext context) =>
+      _isDark(context) ? AppTheme.atelierDark : Colors.white;
+
   @override
   void initState() {
     super.initState();
@@ -153,7 +165,6 @@ class _WishlistScreenState extends State<WishlistScreen> {
   }
 
   Widget _buildEmptyState() {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -163,13 +174,13 @@ class _WishlistScreenState extends State<WishlistScreen> {
             Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: isDarkMode ? AppTheme.gray800 : AppTheme.gray100,
+                color: _surfaceLow(context),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.favorite_border,
                 size: 64,
-                color: isDarkMode ? AppTheme.gray400 : AppTheme.gray400,
+                color: Theme.of(context).textTheme.bodySmall?.color,
               ),
             ),
             const SizedBox(height: 24),
@@ -194,7 +205,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
             const SizedBox(height: 32),
             Container(
               decoration: BoxDecoration(
-                color: AppTheme.atelierMidnight,
+                color: _accent(context),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: ElevatedButton(
@@ -210,10 +221,10 @@ class _WishlistScreenState extends State<WishlistScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: const Text(
+                child: Text(
                   'Start Shopping',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: _accentForeground(context),
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -256,11 +267,11 @@ class _WishlistScreenState extends State<WishlistScreen> {
                 height: 100,
                 fit: BoxFit.cover,
                 placeholder: (context, url) =>
-                    Container(color: AppTheme.gray100),
+                    Container(color: _surfaceLow(context)),
                 errorWidget: (context, url, error) => Container(
                   width: 100,
                   height: 100,
-                  color: AppTheme.gray100,
+                  color: _surfaceLow(context),
                   child: const Icon(
                     Icons.checkroom,
                     color: AppTheme.gray400,
@@ -343,13 +354,13 @@ class _WishlistScreenState extends State<WishlistScreen> {
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: AppTheme.atelierMidnight,
+                    color: _accent(context),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.shopping_cart_outlined,
-                      color: Colors.white,
+                      color: _accentForeground(context),
                     ),
                     onPressed: () {
                       _wishlistService.addProductToCart(product);

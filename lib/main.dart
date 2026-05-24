@@ -104,6 +104,7 @@ class _AppNavigatorState extends State<AppNavigator> {
   String? _selectedOrderId;
   final _authService = FirebaseAuthService();
   bool _hasSeenOnboarding = false;
+  final List<_NavigationEntry> _history = [];
 
   @override
   void initState() {
@@ -120,12 +121,15 @@ class _AppNavigatorState extends State<AppNavigator> {
             _hasSeenOnboarding = true;
             if (_authService.isCurrentUserPasswordAccount &&
                 !_authService.isCurrentUserEmailVerified) {
+              _history.clear();
               _currentScreen = AppScreen.verifyEmail;
             } else {
+              _history.clear();
               _currentScreen = AppScreen.home;
             }
           } else if (_hasSeenOnboarding) {
             // User signed out, go to sign in
+            _history.clear();
             _currentScreen = AppScreen.signin;
           }
         });
@@ -144,8 +148,32 @@ class _AppNavigatorState extends State<AppNavigator> {
     }
   }
 
-  void _navigateTo(AppScreen screen) {
+  _NavigationEntry get _currentEntry {
+    return _NavigationEntry(
+      screen: _currentScreen,
+      productId: _selectedProductId,
+      orderId: _selectedOrderId,
+    );
+  }
+
+  bool get _isRootScreen {
+    return _currentScreen == AppScreen.onboarding ||
+        _currentScreen == AppScreen.signin ||
+        _currentScreen == AppScreen.home;
+  }
+
+  void _navigateTo(
+    AppScreen screen, {
+    bool trackHistory = true,
+    bool clearHistory = false,
+  }) {
     setState(() {
+      if (clearHistory) {
+        _history.clear();
+      } else if (trackHistory && screen != _currentScreen) {
+        _history.add(_currentEntry);
+      }
+
       if (screen == AppScreen.home ||
           screen == AppScreen.signin ||
           screen == AppScreen.signup ||
@@ -158,6 +186,10 @@ class _AppNavigatorState extends State<AppNavigator> {
 
   void _navigateToProduct(int productId) {
     setState(() {
+      if (_currentScreen != AppScreen.product ||
+          _selectedProductId != productId) {
+        _history.add(_currentEntry);
+      }
       _selectedProductId = productId;
       _currentScreen = AppScreen.product;
     });
@@ -165,6 +197,10 @@ class _AppNavigatorState extends State<AppNavigator> {
 
   void _navigateToOrderTracking(String orderId) {
     setState(() {
+      if (_currentScreen != AppScreen.orderTracking ||
+          _selectedOrderId != orderId) {
+        _history.add(_currentEntry);
+      }
       _selectedOrderId = orderId;
       _currentScreen = AppScreen.orderTracking;
     });
@@ -172,9 +208,39 @@ class _AppNavigatorState extends State<AppNavigator> {
 
   void _navigateToOrderSuccess(String orderId) {
     setState(() {
+      if (_currentScreen != AppScreen.orderSuccess ||
+          _selectedOrderId != orderId) {
+        _history.add(_currentEntry);
+      }
       _selectedOrderId = orderId;
       _currentScreen = AppScreen.orderSuccess;
     });
+  }
+
+  bool _goBack({AppScreen fallback = AppScreen.home}) {
+    if (_history.isNotEmpty) {
+      final previous = _history.removeLast();
+      setState(() {
+        _currentScreen = previous.screen;
+        _selectedProductId = previous.productId;
+        _selectedOrderId = previous.orderId;
+      });
+      return true;
+    }
+
+    if (_currentScreen != fallback && !_isRootScreen) {
+      _navigateTo(fallback, trackHistory: false);
+      return true;
+    }
+
+    return false;
+  }
+
+  void _handleSystemBack() {
+    final handled = _goBack();
+    if (!handled) {
+      SystemNavigator.pop();
+    }
   }
 
   Widget _buildCurrentScreen() {
@@ -185,20 +251,21 @@ class _AppNavigatorState extends State<AppNavigator> {
         );
       case AppScreen.signin:
         return SignInScreen(
-          onSignIn: () => _navigateTo(AppScreen.home),
+          onSignIn: () => _navigateTo(AppScreen.home, clearHistory: true),
           onSignUp: () => _navigateTo(AppScreen.signup),
           onEmailVerificationRequired: () => _navigateTo(AppScreen.verifyEmail),
         );
       case AppScreen.signup:
         return SignUpScreen(
-          onSignUp: () => _navigateTo(AppScreen.home),
-          onSignIn: () => _navigateTo(AppScreen.signin),
+          onSignUp: () => _navigateTo(AppScreen.home, clearHistory: true),
+          onSignIn: () => _goBack(fallback: AppScreen.signin),
           onEmailVerificationRequired: () => _navigateTo(AppScreen.verifyEmail),
         );
       case AppScreen.verifyEmail:
         return EmailVerificationScreen(
-          onVerified: () => _navigateTo(AppScreen.home),
-          onBackToSignIn: () => _navigateTo(AppScreen.signin),
+          onVerified: () => _navigateTo(AppScreen.home, clearHistory: true),
+          onBackToSignIn: () =>
+              _navigateTo(AppScreen.signin, clearHistory: true),
         );
       case AppScreen.home:
         return HomeScreen(
@@ -208,60 +275,73 @@ class _AppNavigatorState extends State<AppNavigator> {
       case AppScreen.product:
         return ProductDetailScreen(
           productId: _selectedProductId ?? 1,
-          onBack: () => _navigateTo(AppScreen.home),
+          onBack: () => _goBack(),
           onNavigate: _navigateTo,
         );
       case AppScreen.cart:
-        return CartScreen(
-          onBack: () => _navigateTo(AppScreen.home),
-          onNavigate: _navigateTo,
-        );
+        return CartScreen(onBack: () => _goBack(), onNavigate: _navigateTo);
       case AppScreen.profile:
         return ProfileScreen(
-          onBack: () => _navigateTo(AppScreen.home),
-          onSignOut: () => _navigateTo(AppScreen.signin),
+          onBack: () => _goBack(),
+          onSignOut: () => _navigateTo(AppScreen.signin, clearHistory: true),
           onNavigate: _navigateTo,
           onThemeChange: widget.onThemeChange,
         );
       case AppScreen.tryon:
-        return VirtualTryOnScreen(onBack: () => _navigateTo(AppScreen.home));
+        return VirtualTryOnScreen(onBack: () => _goBack());
       case AppScreen.wishlist:
         return WishlistScreen(
-          onBack: () => _navigateTo(AppScreen.home),
+          onBack: () => _goBack(),
           onProductClick: _navigateToProduct,
         );
       case AppScreen.search:
         return SearchScreen(
           onProductClick: _navigateToProduct,
-          onBack: () => _navigateTo(AppScreen.home),
+          onBack: () => _goBack(),
         );
       case AppScreen.orderHistory:
         return OrderHistoryScreen(
-          onBack: () => _navigateTo(AppScreen.home),
+          onBack: () => _goBack(),
           onOrderClick: _navigateToOrderTracking,
         );
       case AppScreen.checkout:
         return CheckoutScreen(
-          onBack: () => _navigateTo(AppScreen.cart),
+          onBack: () => _goBack(fallback: AppScreen.cart),
           onOrderPlaced: _navigateToOrderSuccess,
         );
       case AppScreen.orderSuccess:
         return OrderSuccessScreen(
           orderId: _selectedOrderId ?? '',
-          onContinueShopping: () => _navigateTo(AppScreen.home),
+          onContinueShopping: () =>
+              _navigateTo(AppScreen.home, clearHistory: true),
           onViewOrders: () => _navigateTo(AppScreen.orderHistory),
           onTrackOrder: _navigateToOrderTracking,
         );
       case AppScreen.orderTracking:
         return OrderTrackingScreen(
           orderId: _selectedOrderId ?? '',
-          onBack: () => _navigateTo(AppScreen.orderHistory),
+          onBack: () => _goBack(fallback: AppScreen.orderHistory),
         );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return _buildCurrentScreen();
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleSystemBack();
+      },
+      child: _buildCurrentScreen(),
+    );
   }
+}
+
+class _NavigationEntry {
+  final AppScreen screen;
+  final int? productId;
+  final String? orderId;
+
+  const _NavigationEntry({required this.screen, this.productId, this.orderId});
 }

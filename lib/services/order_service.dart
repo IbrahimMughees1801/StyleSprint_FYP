@@ -56,7 +56,8 @@ class OrderService extends ChangeNotifier {
           .doc(user.uid)
           .collection('orders')
           .orderBy('date', descending: true)
-          .get();
+          .get()
+          .timeout(const Duration(seconds: 5));
 
       final localOrders = List<Order>.from(_orders);
       final cloudOrders = snapshot.docs.map((doc) {
@@ -72,6 +73,9 @@ class OrderService extends ChangeNotifier {
         ..clear()
         ..addAll([...cloudOrders, ...unsyncedLocal])
         ..sort((a, b) => b.date.compareTo(a.date));
+    } on TimeoutException {
+      _error =
+          'Orders are taking longer than expected to load. Your local orders are still available.';
     } catch (e) {
       _error = 'Failed to load orders: $e';
     } finally {
@@ -87,6 +91,7 @@ class OrderService extends ChangeNotifier {
     required double tax,
     required double total,
     required String paymentMethod,
+    Map<String, dynamic> paymentDetails = const {},
     required Map<String, String> address,
   }) async {
     final now = DateTime.now();
@@ -102,6 +107,7 @@ class OrderService extends ChangeNotifier {
       tax: tax,
       total: total,
       paymentMethod: paymentMethod,
+      paymentDetails: paymentDetails,
       addressName: address['name'] ?? 'Delivery Address',
       address: address['address'] ?? '',
       city: address['city'] ?? '',
@@ -146,6 +152,18 @@ class OrderService extends ChangeNotifier {
           .doc(order.id)
           .set(order.toMap(), SetOptions(merge: true))
           .timeout(const Duration(seconds: 4));
+      if (order.paymentDetails.isNotEmpty) {
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .set({
+              'savedPaymentCards': FieldValue.arrayUnion([
+                order.paymentDetails,
+              ]),
+              'savedPaymentCardsUpdatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true))
+            .timeout(const Duration(seconds: 4));
+      }
       _error = null;
     } on TimeoutException {
       _error =
