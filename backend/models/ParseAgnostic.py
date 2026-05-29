@@ -61,5 +61,7 @@ class GraphonomyInference:
             output_name,
             "--use_gpu",
             use_gpu,
+            "--scales",
+            os.environ.get("API_GRAPHONOMY_SCALES", "1.0"),
         ]
         subprocess.run(command, cwd=str(self.repo_dir), env=env, check=True)

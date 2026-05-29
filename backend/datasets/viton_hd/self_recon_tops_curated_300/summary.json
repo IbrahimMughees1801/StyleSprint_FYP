@@ -1,0 +1,26 @@
+{
+  "source_manifest": "backend\\datasets\\viton_hd\\test_subset_500_clean\\self_recon_manifest.jsonl",
+  "total": 500,
+  "kept": 300,
+  "rejected": {
+    "aspect": 7,
+    "height": 41,
+    "coverage": 52
+  },
+  "manifest": "backend\\datasets\\viton_hd\\self_recon_tops_curated_300\\manifest.jsonl",
+  "preview": "backend\\datasets\\viton_hd\\self_recon_tops_curated_300\\preview.jpg",
+  "filters": {
+    "coverage": [
+      0.06,
+      0.28
+    ],
+    "height": [
+      45,
+      155
+    ],
+    "aspect": [
+      0.5,
+      1.45
+    ]
+  }
+}

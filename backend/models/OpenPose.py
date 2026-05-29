@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -17,12 +18,15 @@ class OpenPoseRunner:
     def run(self):
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.json_dir.mkdir(parents=True, exist_ok=True)
+        single_input_dir = self.output_dir / f"_{self.image_path.stem}_input"
+        single_input_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(self.image_path, single_input_dir / self.image_path.name)
         openpose_demo = self.openpose_root / "bin" / "OpenPoseDemo.exe"
         if openpose_demo.exists():
             command = [
                 str(openpose_demo),
                 "--image_dir",
-                str(self.image_path.parent),
+                str(single_input_dir),
                 "--write_images",
                 str(self.output_dir),
                 "--write_json",
@@ -40,7 +44,7 @@ class OpenPoseRunner:
             sys.executable,
             str(python_script),
             "--image_dir",
-            str(self.image_path.parent),
+            str(single_input_dir),
             "--write_images",
             str(self.output_dir),
             "--write_json",

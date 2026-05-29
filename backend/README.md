@@ -22,6 +22,35 @@ $env:API_PROCESSING_MODE="ml"
 .\.venv\Scripts\python.exe -m uvicorn api_server:app --host 0.0.0.0 --port 8000 --app-dir backend
 ```
 
+Useful ML debug settings:
+
+```bash
+$env:API_FALLBACK_TO_SIMPLE="false"          # surface ML failures instead of overlay fallback
+$env:API_DIFFUSION_STEPS="12"                # faster diffusion while debugging
+$env:API_GRAPHONOMY_SCALES="1.0"             # try "0.75,1.0,1.25" for slower parse experiments
+$env:API_ALLOW_POSE_FALLBACK_PARSE="false"   # keep DCI from running on synthetic fallback parses
+```
+
+Debug contact sheets are written to `backend/results/debug/`. Only run DCI
+after the raw parse, parse labels, warped cloth, and warp mask tiles look sane.
+
+To score saved artifacts from one run:
+
+```bash
+.\.venv\Scripts\python.exe backend\diagnose_tryon_run.py v2parse_56cb4de6
+```
+
+This reports stage health for Graphonomy, the active human parse, cloth mask,
+OpenPose, DensePose, PF-AFN, and the final DCI image. It is not a benchmark
+accuracy number unless you provide ground-truth labels, but it makes model
+failures visible.
+
+Graphonomy note: the bundled `weights/inference.pth` checkpoint is a
+7-class Pascal-part target model transferred from 20-class CIHP. The inference
+script auto-detects this and maps Pascal parts back into the 20-label VITON
+space before DCI. Person parsing is run on the original upload aspect ratio and
+then resized to the DCI canvas to avoid stretching-induced parser collapse.
+
 Check ML readiness:
 
 ```text
@@ -31,7 +60,7 @@ http://localhost:8000/api/tryon/readiness
 Optional faster diffusion smoke setting:
 
 ```bash
-$env:API_DIFFUSION_STEPS="30"
+$env:API_DIFFUSION_STEPS="8"
 ```
 
 Note: `api_server_simple.py` is still available as a lightweight overlay-only fallback.

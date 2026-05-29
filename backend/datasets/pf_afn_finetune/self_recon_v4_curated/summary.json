@@ -1,0 +1,10 @@
+{
+  "sample_count": 23,
+  "size": [
+    192,
+    256
+  ],
+  "manifest": "backend\\datasets\\pf_afn_finetune\\self_recon_v4_curated\\manifest.jsonl",
+  "coverage_min": 0.113,
+  "coverage_max": 0.3276
+}

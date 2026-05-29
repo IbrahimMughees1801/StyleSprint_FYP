@@ -13,6 +13,17 @@ from PIL import Image
 from torchvision import transforms
 
 
+def _use_legacy_grid_sample_alignment() -> None:
+    original_grid_sample = F.grid_sample
+
+    def grid_sample_legacy(input, grid, mode="bilinear", padding_mode="zeros", align_corners=None):
+        if align_corners is None:
+            align_corners = True
+        return original_grid_sample(input, grid, mode=mode, padding_mode=padding_mode, align_corners=align_corners)
+
+    F.grid_sample = grid_sample_legacy
+
+
 def _load_rgb(path: Path, size: tuple[int, int]) -> torch.Tensor:
     image = Image.open(path).convert("RGB").resize(size, Image.BICUBIC)
     tensor = transforms.ToTensor()(image)
@@ -73,6 +84,7 @@ def main() -> None:
         ],
     ]
     sys.modules.pop("models", None)
+    _use_legacy_grid_sample_alignment()
 
     from models.afwm import AFWM
     def load_warp_checkpoint(model: torch.nn.Module, checkpoint_path: Path) -> None:
@@ -114,7 +126,7 @@ def main() -> None:
             last_flow.permute(0, 2, 3, 1),
             mode="bilinear",
             padding_mode="zeros",
-            align_corners=False,
+            align_corners=True,
         )
 
     _save_rgb(warped_cloth, Path(args.output_cloth))
