@@ -34,14 +34,18 @@ migrate_working_dir/
 /coverage/
 
 # Local ML artifacts
+/backend/.cache/
 /backend/third_party/
 /weights/
 /FINAL/
 /backend/FINAL/
+/backend/FINAL*/
+/backend/results/
 /backend/temp_uploads/
 /temp_uploads/
 /backend/fastsam_input/
 /backend/fastsam_output/
+/backend/datasets/
 /backend/*.jpg
 /backend/*.jpeg
 /backend/*.png
