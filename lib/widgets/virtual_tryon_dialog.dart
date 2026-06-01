@@ -3,16 +3,21 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
+import '../services/saved_tryon_service.dart';
 import '../services/virtual_tryon_service.dart';
 
 class VirtualTryOnDialog extends StatefulWidget {
   final String productImageUrl;
   final String productName;
+  final String? productCategory;
+  final String? productType;
 
   const VirtualTryOnDialog({
     super.key,
     required this.productImageUrl,
     required this.productName,
+    this.productCategory,
+    this.productType,
   });
 
   @override
@@ -21,6 +26,7 @@ class VirtualTryOnDialog extends StatefulWidget {
 
 class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
   final VirtualTryOnService _tryOnService = VirtualTryOnService();
+  final SavedTryOnService _savedTryOnService = SavedTryOnService.instance;
   final ImagePicker _picker = ImagePicker();
 
   XFile? _selectedPersonImage;
@@ -91,55 +97,34 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
       final result = await _tryOnService.processBase64Images(
         personImageBytes: _selectedPersonImageBytes!,
         clothImageBytes: clothImageBytes,
+        productCategory: widget.productCategory,
+        productType: widget.productType,
       );
 
-      if (result.success && result.sessionId.isNotEmpty) {
-        // Poll for completion
-        await _pollForResult(result.sessionId);
+      if (!result.success || result.sessionId.isEmpty) {
+        throw Exception(result.message);
       }
+
+      await _savedTryOnService.addProcessingTryOn(
+        sessionId: result.sessionId,
+        productName: widget.productName,
+        productImageUrl: widget.productImageUrl,
+      );
+
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      setState(() => _isProcessing = false);
+      Navigator.pop(context);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Try-on is processing in the background.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
-        _isProcessing = false;
-      });
-    }
-  }
-
-  Future<void> _pollForResult(String sessionId) async {
-    int attempts = 0;
-    const maxAttempts = 60; // 60 attempts * 2 seconds = 2 minutes max
-
-    while (attempts < maxAttempts) {
-      try {
-        final status = await _tryOnService.checkStatus(sessionId);
-
-        if (status.isCompleted) {
-          // Get result image
-          final imageBytes = await _tryOnService.getResultImage(sessionId);
-          setState(() {
-            _resultImageBytes = imageBytes;
-            _isProcessing = false;
-          });
-          break;
-        } else if (status.isFailed) {
-          throw Exception('Processing failed');
-        }
-
-        // Wait before next poll
-        await Future.delayed(const Duration(seconds: 2));
-        attempts++;
-      } catch (e) {
-        setState(() {
-          _errorMessage = 'Error checking status: $e';
-          _isProcessing = false;
-        });
-        break;
-      }
-    }
-
-    if (attempts >= maxAttempts) {
-      setState(() {
-        _errorMessage = 'Processing timed out. Please try again.';
         _isProcessing = false;
       });
     }
@@ -279,7 +264,7 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'This may take 1-2 minutes',
+              'You can close this and keep browsing',
               style: TextStyle(color: AppTheme.gray600, fontSize: 14),
             ),
           ],

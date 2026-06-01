@@ -1,72 +1,199 @@
-# 🚀 QUICK START CARD - Virtual Try-On
+# QUICK REFERENCE - Full ML Virtual Try-On
 
-## ⚡ Get It Running in 3 Commands
+Use this for evaluation/demo. Do not start `api_server_simple.py`.
 
-```bash
-# 1. Install dependencies
-cd backend
-pip install fastapi uvicorn pillow pydantic python-multipart
+## 1. Start the full ML backend
 
-# 2. Start server  
+Open PowerShell from anywhere and run:
+
+```powershell
+cd C:\Users\muhdi\Desktop\fyp_app\backend
+$env:API_PROCESSING_MODE='ml'
+$env:API_FALLBACK_TO_SIMPLE='false'
+..\.venv\Scripts\python.exe -m uvicorn api_server:app --host 0.0.0.0 --port 8000
+```
+
+Keep this terminal open.
+
+Check locally:
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:8000/api/tryon/readiness -UseBasicParsing
+```
+
+Expected important values:
+
+```text
+"configured_mode":"ml"
+"active_mode":"ml"
+"ml_stack_ready":true
+```
+
+## 2. Start the public phone tunnel
+
+Open a second PowerShell window:
+
+```powershell
+& "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://localhost:8000
+```
+
+Cloudflare will print a URL like:
+
+```text
+https://something-random.trycloudflare.com
+```
+
+Keep this terminal open too.
+
+Important:
+
+- Each new quick tunnel usually creates a new URL.
+- If the tunnel is closed and reopened, update the Flutter command with the new URL.
+- The phone and laptop do not need the same WiFi, but both need internet.
+
+Test the tunnel in your phone browser:
+
+```text
+https://YOUR-TUNNEL.trycloudflare.com/api/tryon/readiness
+```
+
+It should show `active_mode` as `ml`.
+
+## 3. Run Flutter on the phone
+
+Open a third PowerShell window from the project root:
+
+```powershell
+cd C:\Users\muhdi\Desktop\fyp_app
+flutter run --dart-define=TRYON_API_BASE_URL=https://YOUR-TUNNEL.trycloudflare.com
+```
+
+Use the exact URL printed by Cloudflare.
+
+Do a full rerun after changing the tunnel URL. Hot reload is not enough for `--dart-define`.
+
+## 4. Expected app behavior
+
+The full ML pipeline is slow because it runs:
+
+YOLO -> FastSAM -> DensePose -> OpenPose -> Graphonomy -> PF-AFN -> DCI-VTON
+
+The app now handles this asynchronously:
+
+1. Start try-on.
+2. App says the try-on is processing in the background.
+3. Continue browsing the app.
+4. When processing finishes, the app prompts that the try-on is ready.
+5. Open Profile -> Saved Try-ons to view the result.
+
+This is the intended demo flow for the full model.
+
+## 5. Controlled demo inputs
+
+Use these for repeatable evaluation tests.
+
+Person image:
+
+```text
+C:\Users\muhdi\Desktop\fyp_app\backend\temp_uploads\image\fresh_yolo_20260601_02_person.jpg
+```
+
+Garment image:
+
+```text
+C:\Users\muhdi\Desktop\fyp_app\backend\temp_uploads\cloth\fresh_yolo_20260601_02_cloth.jpg
+```
+
+What they are:
+
+- Person: female model wearing a blue/green patterned shirt with white pants.
+- Garment: black long-sleeve wrap top with a front tie. This is the controlled black garment used in recent PF-AFN/DCI tests.
+
+The controlled product should be added to Supabase with this name:
+
+```text
+Controlled Black Wrap Top
+```
+
+To upload it permanently to Supabase, use a PowerShell terminal with the service-role key set:
+
+```powershell
+cd C:\Users\muhdi\Desktop\fyp_app
+$env:SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_KEY"
+.\tools\upload_controlled_black_wrap_top.ps1
+```
+
+Do not put the service-role key in the repo or Flutter app.
+
+The public anon key cannot upload/insert this product because Supabase RLS blocks it.
+
+## 6. Stop everything
+
+To stop backend and tunnel:
+
+```powershell
+Get-Process python,cloudflared -ErrorAction SilentlyContinue | Select-Object ProcessName,Id,StartTime,Path
+```
+
+Then stop the listed backend/tunnel processes:
+
+```powershell
+Stop-Process -Id YOUR_PROCESS_IDS -Force
+```
+
+Check port 8000 is free:
+
+```powershell
+Test-NetConnection -ComputerName 127.0.0.1 -Port 8000
+```
+
+Expected when stopped:
+
+```text
+TcpTestSucceeded : False
+```
+
+## 7. Common issues
+
+### Port 8000 already in use
+
+This means the backend is already running, or an old process is still using the port.
+
+```powershell
+Get-Process python -ErrorAction SilentlyContinue | Select-Object Id,StartTime,Path
+```
+
+Stop the old backend process, then restart the full ML backend.
+
+### Phone says backend is not running
+
+Check these in order:
+
+1. Backend terminal is still open.
+2. Tunnel terminal is still open.
+3. Flutter was run with the current Cloudflare URL.
+4. Phone browser can open:
+
+```text
+https://YOUR-TUNNEL.trycloudflare.com/api/tryon/readiness
+```
+
+### Old tunnel URL stopped working
+
+That is normal for quick tunnels. Restart cloudflared, copy the new URL, and rerun Flutter with the new `--dart-define`.
+
+### Try-on takes several minutes
+
+That is expected for the full ML stack. The result should appear in Profile -> Saved Try-ons when complete.
+
+## 8. Evaluation note
+
+Use `api_server.py` with `API_PROCESSING_MODE=ml`.
+
+Do not use:
+
+```powershell
 python api_server_simple.py
-
-# 3. Test it works
-# Open: http://localhost:8000
 ```
 
-## ✅ Your Setup Status
-
-- ✅ **Simplified Version**: Ready to use NOW (use `api_server_simple.py`)
-- ⚠️ **Original ML Code**: In `api_server.py` but has issues, skip for now
-- ✅ **Flutter App**: Already integrated, just connect
-- ⏳ **Full ML Pipeline**: Future upgrade when you get models folder
-
-## 📱 Connect Phone
-
-1. Get PC IP: `ipconfig` → Find IPv4 (e.g., 192.168.1.100)
-2. Update Flutter: `lib/services/virtual_tryon_service.dart` line 11
-3. Change to: `'http://192.168.1.100:8000'`
-4. Run: `flutter run`
-
-## 🎯 Test It
-
-1. Open product with AR badge
-2. Tap "Try This On"
-3. Take/select photo
-4. Wait 2-3 seconds
-5. ✨ Done!
-
-## 🔧 Files You Need
-
-- ✅ `api_server_simple.py` - Server (simplified)
-- ✅ `simple_tryon.py` - Overlay logic
-- ✅ `requirements_simple.txt` - Dependencies
-- ✅ `start_simple.bat` - One-click start
-
-## ⚠️ Common Issues
-
-**"Module not found"** → Run: `pip install -r requirements_simple.txt`
-
-**"Can't connect"** → Check same WiFi, firewall allows port 8000
-
-**"Result not showing"** → Check server console for errors
-
-## 📖 Full Guides
-
-- `START_HERE.md` - Complete setup guide
-- `QUICK_SETUP_SIMPLE.md` - Detailed instructions
-- Original ML docs still in `IMPLEMENTATION_SUMMARY.md`
-
-## ✨ Success Looks Like
-
-```
-Server starting at: http://localhost:8000
-Mode: Simplified Overlay
-Processing time: ~2-3 seconds per request
-```
-
-Then in Flutter app: Photo → Product → Result in 3 seconds!
-
----
-
-**Status**: ✅ Safe, tested, ready to run! No risk to existing code.
+The simplified overlay server is not evaluation quality.

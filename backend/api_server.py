@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import BackgroundTasks, FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
@@ -226,6 +226,31 @@ class TryOnResponse(BaseModel):
     session_id: str
     result_image_url: Optional[str] = None
     processing_time: Optional[float] = None
+
+
+SESSION_FAILURES: dict[str, str] = {}
+
+
+def run_tryon_pipeline_background(
+    person_path: str,
+    cloth_path: str,
+    session_id: str,
+    product_category: Optional[str] = None,
+    product_type: Optional[str] = None,
+) -> None:
+    SESSION_FAILURES.pop(session_id, None)
+    try:
+        result = run_tryon_pipeline(
+            person_path,
+            cloth_path,
+            session_id,
+            product_category=product_category,
+            product_type=product_type,
+        )
+        if not result.get("success"):
+            SESSION_FAILURES[session_id] = result.get("error", "Processing failed")
+    except Exception as e:
+        SESSION_FAILURES[session_id] = str(e)
 
 
 def save_base64_image(base64_str: str, output_path: str):
@@ -1016,6 +1041,7 @@ def create_debug_contact_sheet(
             ("pf edge", os.path.join(temp_dir, "pf_afn", session_id, "edge.png")),
             ("warped cloth", os.path.join(temp_dir, "test", "unpaired-cloth-warp", person_filename)),
             ("warp mask", os.path.join(temp_dir, "test", "unpaired-cloth-warp-mask", person_filename)),
+            ("guardrail alpha", os.path.join(debug_dir, f"{session_id}_garment_guardrail_alpha.png")),
             ("final", final_result_path),
         ]
 
@@ -1035,6 +1061,214 @@ def create_debug_contact_sheet(
     except Exception as exc:
         print(f"Could not create debug contact sheet: {exc}")
         return None
+
+
+def apply_garment_identity_guardrail(
+    session_id: str,
+    person_filename: str,
+    cloth_filename: str,
+    final_result_path: str,
+) -> Optional[dict]:
+    if os.getenv("API_GARMENT_GUARDRAIL", "true").strip().lower() in {"0", "false", "no"}:
+        return {"applied": False, "reason": "disabled"}
+    if not os.path.exists(final_result_path):
+        return None
+
+    import cv2
+    import numpy as np
+
+    temp_dir = CONFIG["temp_dir"]
+    debug_dir = CONFIG["debug_dir"]
+    cloth_path = os.path.join(temp_dir, "test", "cloth", cloth_filename)
+    cloth_mask_path = os.path.join(temp_dir, "test", "cloth-mask", cloth_filename)
+    warp_mask_path = os.path.join(temp_dir, "test", "unpaired-cloth-warp-mask", person_filename)
+    parse_path = os.path.join(temp_dir, "test", "image-parse-v3", person_filename.replace(".jpg", ".png"))
+    required = [cloth_path, cloth_mask_path, warp_mask_path]
+    if not all(os.path.exists(path) for path in required):
+        return {"applied": False, "reason": "missing_inputs"}
+
+    final = Image.open(final_result_path).convert("RGB")
+    out_size = final.size
+    final_array = np.array(final).astype(np.float32)
+
+    cloth = Image.open(cloth_path).convert("RGB")
+    cloth_mask = Image.open(cloth_mask_path).convert("L")
+    if cloth_mask.size != cloth.size:
+        cloth_mask = cloth_mask.resize(cloth.size, Image.Resampling.NEAREST)
+
+    cloth_mask_array = np.array(cloth_mask) >= 128
+    source_bbox = _binary_bbox(cloth_mask_array)
+    if source_bbox is None:
+        return {"applied": False, "reason": "empty_cloth_mask"}
+
+    warp_mask_small = Image.open(warp_mask_path).convert("L")
+    warp_mask = warp_mask_small.resize(out_size, Image.Resampling.BILINEAR)
+    warp_binary = np.array(warp_mask) >= 64
+    target_bbox = _binary_bbox(warp_binary)
+    if target_bbox is None:
+        return {"applied": False, "reason": "empty_warp_mask"}
+
+    x1, y1, x2, y2 = source_bbox
+    source_pad = int(os.getenv("API_GUARDRAIL_SOURCE_PAD", "4"))
+    x1 = max(0, x1 - source_pad)
+    y1 = max(0, y1 - source_pad)
+    x2 = min(cloth.width - 1, x2 + source_pad)
+    y2 = min(cloth.height - 1, y2 + source_pad)
+
+    tx1, ty1, tx2, ty2 = target_bbox
+    target_width = tx2 - tx1 + 1
+    target_height = ty2 - ty1 + 1
+    width_scale = float(os.getenv("API_GUARDRAIL_WIDTH_SCALE", "1.00"))
+    height_scale = float(os.getenv("API_GUARDRAIL_HEIGHT_SCALE", "1.00"))
+    y_shift = float(os.getenv("API_GUARDRAIL_Y_SHIFT", "0.00"))
+    desired_width = max(1, int(round(target_width * width_scale)))
+    desired_height = max(1, int(round(target_height * height_scale)))
+    target_cx = (tx1 + tx2) / 2
+    target_cy = (ty1 + ty2) / 2
+    paste_x = int(round(target_cx - desired_width / 2))
+    paste_y = int(round(target_cy - desired_height / 2 + target_height * y_shift))
+
+    cloth_crop = cloth.crop((x1, y1, x2 + 1, y2 + 1))
+    mask_crop = cloth_mask.crop((x1, y1, x2 + 1, y2 + 1))
+    cloth_resized = cloth_crop.resize((desired_width, desired_height), Image.Resampling.BICUBIC)
+    mask_resized = mask_crop.resize((desired_width, desired_height), Image.Resampling.BILINEAR)
+
+    reference = Image.new("RGB", out_size, (0, 0, 0))
+    reference_mask = Image.new("L", out_size, 0)
+    reference.paste(cloth_resized, (paste_x, paste_y), mask_resized)
+    reference_mask.paste(mask_resized, (paste_x, paste_y))
+
+    ref_array = np.array(reference).astype(np.float32)
+    ref_mask = (np.array(reference_mask).astype(np.float32) / 255.0)
+    warp_soft = np.array(warp_mask).astype(np.float32) / 255.0
+    allowed = np.minimum(ref_mask, np.clip(warp_soft * 1.35, 0, 1))
+
+    yy, xx = np.indices((out_size[1], out_size[0]))
+    target_x = np.clip((xx - tx1) / max(1, target_width), 0, 1)
+    target_y = np.clip((yy - ty1) / max(1, target_height), 0, 1)
+    protect_parse = np.zeros((out_size[1], out_size[0]), dtype=bool)
+    side_sleeves = (
+        (ref_mask > 0.08)
+        & ((target_x < 0.28) | (target_x > 0.72))
+        & (target_y > 0.10)
+    )
+
+    if os.path.exists(parse_path):
+        parse = np.array(Image.open(parse_path).convert("L").resize(out_size, Image.Resampling.NEAREST))
+        protect_parse = np.isin(parse, [1, 2, 4, 9, 12, 13, 16, 17, 18, 19])
+        allowed[protect_parse] = 0
+        side_sleeves[protect_parse] = False
+
+    final_uint8 = np.array(final)
+    ycrcb = cv2.cvtColor(final_uint8, cv2.COLOR_RGB2YCrCb)
+    y_channel, cr_channel, cb_channel = cv2.split(ycrcb)
+    hsv = cv2.cvtColor(final_uint8, cv2.COLOR_RGB2HSV)
+    hue_channel, saturation_channel, value_channel = cv2.split(hsv)
+    skin_like = (
+        (y_channel > 45)
+        & (cr_channel >= 132)
+        & (cr_channel <= 180)
+        & (cb_channel >= 75)
+        & (cb_channel <= 140)
+        & (hue_channel <= 28)
+        & (saturation_channel >= 18)
+        & (saturation_channel <= 165)
+        & (value_channel >= 65)
+    )
+    allowed[skin_like] = 0
+    side_sleeves[skin_like] = False
+
+    ref_gray = cv2.cvtColor(np.array(reference), cv2.COLOR_RGB2GRAY)
+    edge_low = int(os.getenv("API_GUARDRAIL_CANNY_LOW", "24"))
+    edge_high = int(os.getenv("API_GUARDRAIL_CANNY_HIGH", "72"))
+    edges = cv2.Canny(ref_gray, edge_low, edge_high)
+    edges = cv2.dilate(
+        edges,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
+        iterations=1,
+    ).astype(np.float32) / 255.0
+
+    base_alpha = float(os.getenv("API_GUARDRAIL_BASE_ALPHA", "0.08"))
+    edge_alpha = float(os.getenv("API_GUARDRAIL_EDGE_ALPHA", "0.18"))
+    max_alpha = float(os.getenv("API_GUARDRAIL_MAX_ALPHA", "0.30"))
+    alpha = allowed * np.clip(base_alpha + edges * edge_alpha, 0, max_alpha)
+    sleeve_alpha = float(os.getenv("API_GUARDRAIL_SLEEVE_ALPHA", "0.16"))
+    old_pattern_alpha = float(os.getenv("API_GUARDRAIL_OLD_PATTERN_ALPHA", "0.26"))
+    old_pattern = side_sleeves & (saturation_channel > 42) & (value_channel > 45)
+    alpha = np.maximum(alpha, side_sleeves.astype(np.float32) * ref_mask * sleeve_alpha)
+    alpha = np.maximum(alpha, old_pattern.astype(np.float32) * ref_mask * old_pattern_alpha)
+    alpha_blur = float(os.getenv("API_GUARDRAIL_ALPHA_BLUR", "0.8"))
+    if alpha_blur > 0:
+        alpha = cv2.GaussianBlur(alpha, (0, 0), sigmaX=alpha_blur, sigmaY=alpha_blur)
+        alpha *= allowed > 0
+    if float(alpha.mean()) <= 0.0005:
+        return {"applied": False, "reason": "empty_alpha"}
+
+    output = ref_array * alpha[:, :, None] + final_array * (1 - alpha[:, :, None])
+    residue_kernel = int(os.getenv("API_GUARDRAIL_RESIDUE_KERNEL", "41"))
+    if residue_kernel % 2 == 0:
+        residue_kernel += 1
+    garment_neighborhood = cv2.dilate(
+        ((ref_mask > 0.04) | (warp_soft > 0.10)).astype(np.uint8),
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (residue_kernel, residue_kernel)),
+        iterations=1,
+    ).astype(bool)
+    side_zone = ((target_x < 0.36) | (target_x > 0.64)) & (target_y > 0.08)
+    residue_saturation = int(os.getenv("API_GUARDRAIL_OLD_RESIDUE_SATURATION", "30"))
+    residue_value = int(os.getenv("API_GUARDRAIL_OLD_RESIDUE_VALUE", "35"))
+    old_residue = (
+        garment_neighborhood
+        & side_zone
+        & (saturation_channel > residue_saturation)
+        & (value_channel > residue_value)
+        & ~skin_like
+        & ~protect_parse
+    )
+    if old_residue.any():
+        garment_sample = final_array[(warp_soft > 0.25) & ~skin_like]
+        if len(garment_sample):
+            neutral_color = np.percentile(garment_sample, 35, axis=0)
+        else:
+            neutral_color = np.array([24.0, 24.0, 24.0], dtype=np.float32)
+        cleanup_alpha = float(os.getenv("API_GUARDRAIL_OLD_RESIDUE_CLEANUP_ALPHA", "0.58"))
+        output[old_residue] = (
+            output[old_residue] * (1 - cleanup_alpha)
+            + neutral_color.astype(np.float32) * cleanup_alpha
+        )
+    output = np.clip(output, 0, 255).astype(np.uint8)
+
+    raw_path = os.path.join(CONFIG["final_output_dir"], "result", f"{session_id}_dci_raw.png")
+    shutil.copy(final_result_path, raw_path)
+    Image.fromarray(output, mode="RGB").save(final_result_path)
+
+    alpha_path = os.path.join(debug_dir, f"{session_id}_garment_guardrail_alpha.png")
+    reference_path = os.path.join(debug_dir, f"{session_id}_garment_guardrail_reference.jpg")
+    residue_path = os.path.join(debug_dir, f"{session_id}_garment_guardrail_residue.png")
+    Image.fromarray(np.clip(alpha * 255, 0, 255).astype(np.uint8), mode="L").save(alpha_path)
+    Image.fromarray((old_residue.astype(np.uint8) * 255), mode="L").save(residue_path)
+    reference.save(reference_path, "JPEG", quality=92)
+
+    changed = np.abs(output.astype(np.int16) - final_uint8.astype(np.int16)).mean(axis=2)
+    changed_mask = changed > 2
+    payload = {
+        "applied": True,
+        "raw_result_path": raw_path,
+        "alpha_path": alpha_path,
+        "reference_path": reference_path,
+        "residue_path": residue_path,
+        "source_bbox": [int(v) for v in source_bbox],
+        "target_bbox": [int(v) for v in target_bbox],
+        "paste": [paste_x, paste_y, desired_width, desired_height],
+        "alpha_mean": round(float(alpha.mean()), 5),
+        "alpha_max": round(float(alpha.max()), 5),
+        "old_residue_area_ratio": round(float(old_residue.mean()), 5),
+        "changed_area_ratio": round(float(changed_mask.mean()), 5),
+        "mean_changed_l1": round(float(changed[changed_mask].mean()) if changed_mask.any() else 0.0, 4),
+    }
+    metrics_path = os.path.join(debug_dir, f"{session_id}_garment_guardrail.json")
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    return payload
 
 
 def validate_pre_dci_inputs(session_id: str, person_filename: str, cloth_filename: str) -> dict:
@@ -1819,8 +2053,19 @@ def process_virtual_tryon(
             create_debug_contact_sheet(session_id, person_filename, cloth_filename)
             return diffusion_result
         
-        # Return the final result path
         final_result_path = diffusion_result["result_path"]
+        guardrail_result = apply_garment_identity_guardrail(
+            session_id,
+            person_filename,
+            cloth_filename,
+            final_result_path,
+        )
+        if guardrail_result and guardrail_result.get("applied"):
+            print(
+                "   Garment identity guardrail applied "
+                f"changed={guardrail_result.get('changed_area_ratio')}, "
+                f"alpha={guardrail_result.get('alpha_mean')}"
+            )
         debug_sheet_path = create_debug_contact_sheet(
             session_id,
             person_filename,
@@ -1834,6 +2079,7 @@ def process_virtual_tryon(
             "debug_sheet_path": debug_sheet_path,
             "preflight": preflight,
             "post_warp": post_warp,
+            "garment_guardrail": guardrail_result,
             "yolo_detection": yolo_detection,
             "session_id": session_id
         }
@@ -2033,7 +2279,10 @@ async def upload_images(
 
 
 @app.post("/api/tryon/process-base64", response_model=TryOnResponse)
-async def process_base64_images(request: TryOnRequest):
+async def process_base64_images(
+    request: TryOnRequest,
+    background_tasks: BackgroundTasks,
+):
     """
     Process base64 encoded images for virtual try-on
     """
@@ -2050,23 +2299,21 @@ async def process_base64_images(request: TryOnRequest):
             if not save_base64_image(request.cloth_image_base64, temp_cloth_path):
                 raise HTTPException(status_code=400, detail="Invalid cloth image")
         
-        result = run_tryon_pipeline(
+        background_tasks.add_task(
+            run_tryon_pipeline_background,
             temp_person_path,
             temp_cloth_path,
             request.session_id,
             product_category=request.product_category,
             product_type=request.product_type,
         )
-        
-        if result["success"]:
-            return TryOnResponse(
-                success=True,
-                message="Processing completed successfully",
-                session_id=request.session_id,
-                result_image_url=f"/api/tryon/result/{request.session_id}"
-            )
-        else:
-            raise HTTPException(status_code=500, detail=result.get("error", "Processing failed"))
+
+        return TryOnResponse(
+            success=True,
+            message="Processing started",
+            session_id=request.session_id,
+            result_image_url=None,
+        )
     
     except HTTPException:
         raise
@@ -2135,6 +2382,14 @@ async def get_status(session_id: str):
             "result_url": f"/api/tryon/result/{session_id}",
             "stage": "overlay_complete",
             "mode": "simplified"
+        }
+
+    if session_id in SESSION_FAILURES:
+        return {
+            "status": "failed",
+            "session_id": session_id,
+            "stage": "failed",
+            "error": SESSION_FAILURES[session_id],
         }
     
     # Check for warping completion

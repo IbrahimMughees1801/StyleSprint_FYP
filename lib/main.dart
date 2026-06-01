@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -20,7 +22,10 @@ import 'screens/checkout_screen.dart';
 import 'screens/order_success_screen.dart';
 import 'screens/order_tracking_screen.dart';
 import 'services/firebase_auth_service.dart';
+import 'services/saved_tryon_service.dart';
 import 'services/supabase_config.dart';
+
+final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +62,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'Fashion Store',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: _themeMode,
@@ -103,6 +109,7 @@ class _AppNavigatorState extends State<AppNavigator> {
   int? _selectedProductId;
   String? _selectedOrderId;
   final _authService = FirebaseAuthService();
+  final _savedTryOnService = SavedTryOnService.instance;
   bool _hasSeenOnboarding = false;
   final List<_NavigationEntry> _history = [];
 
@@ -110,6 +117,33 @@ class _AppNavigatorState extends State<AppNavigator> {
   void initState() {
     super.initState();
     _checkAuthState();
+    _savedTryOnService.addListener(_handleSavedTryOnUpdate);
+    unawaited(_savedTryOnService.load());
+  }
+
+  @override
+  void dispose() {
+    _savedTryOnService.removeListener(_handleSavedTryOnUpdate);
+    super.dispose();
+  }
+
+  void _handleSavedTryOnUpdate() {
+    final completedSessionId = _savedTryOnService
+        .consumeLatestCompletedSessionId();
+    if (completedSessionId == null || !mounted) return;
+
+    scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: const Text('Your try-on is ready.'),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'View',
+          onPressed: () {
+            _navigateTo(AppScreen.profile);
+          },
+        ),
+      ),
+    );
   }
 
   void _checkAuthState() {

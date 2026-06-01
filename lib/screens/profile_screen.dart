@@ -7,8 +7,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../main.dart';
+import '../models/saved_tryon.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/order_service.dart';
+import '../services/saved_tryon_service.dart';
 import '../services/wishlist_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/bottom_nav.dart';
@@ -34,6 +36,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _authService = FirebaseAuthService();
   final _orderService = OrderService.instance;
+  final _savedTryOnService = SavedTryOnService.instance;
   final _wishlistService = WishlistService.instance;
   final _firestore = FirebaseFirestore.instance;
   final _imagePicker = ImagePicker();
@@ -51,8 +54,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _orderService.addListener(_refresh);
+    _savedTryOnService.addListener(_refresh);
     _wishlistService.addListener(_refresh);
     _orderService.loadOrders();
+    unawaited(_savedTryOnService.load());
     _wishlistService.load();
     _loadProfileMetadata();
   }
@@ -60,6 +65,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _orderService.removeListener(_refresh);
+    _savedTryOnService.removeListener(_refresh);
     _wishlistService.removeListener(_refresh);
     super.dispose();
   }
@@ -87,6 +93,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_savedPaymentCards.isEmpty) return 'Cash on delivery and demo cards';
     if (_savedPaymentCards.length == 1) return '1 demo card saved';
     return '${_savedPaymentCards.length} demo cards saved';
+  }
+
+  String get _tryOnHistorySummary {
+    final processing = _savedTryOnService.processingCount;
+    final completed = _savedTryOnService.completedCount;
+    if (processing > 0 && completed > 0) {
+      return '$processing processing, $completed saved';
+    }
+    if (processing > 0) {
+      return '$processing processing in background';
+    }
+    if (completed > 0) {
+      return '$completed completed ${completed == 1 ? 'try-on' : 'try-ons'}';
+    }
+    return 'View completed virtual try-ons';
   }
 
   Future<void> _loadProfileMetadata() async {
@@ -629,6 +650,188 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showSavedTryOnsSheet() {
+    unawaited(_savedTryOnService.load());
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            child: AnimatedBuilder(
+              animation: _savedTryOnService,
+              builder: (context, _) {
+                final items = _savedTryOnService.items;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Saved Try-ons',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    if (items.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 28),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.checkroom_outlined,
+                              size: 48,
+                              color: AppTheme.gray400,
+                            ),
+                            SizedBox(height: 12),
+                            Text(
+                              'No try-ons yet',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              'Completed previews will appear here.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: AppTheme.gray500),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: items.length,
+                          separatorBuilder: (_, _) => const Divider(height: 18),
+                          itemBuilder: (context, index) {
+                            return _buildSavedTryOnTile(items[index]);
+                          },
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSavedTryOnTile(SavedTryOn item) {
+    final resultBytes = item.resultImageBytes;
+    final statusColor = item.isCompleted
+        ? Colors.green
+        : item.isFailed
+        ? AppTheme.red600
+        : Theme.of(context).colorScheme.primary;
+    final statusIcon = item.isCompleted
+        ? Icons.check_circle_outline
+        : item.isFailed
+        ? Icons.error_outline
+        : Icons.hourglass_top_outlined;
+    final statusLabel = item.isCompleted
+        ? 'Ready'
+        : item.isFailed
+        ? 'Failed'
+        : 'Processing';
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 56,
+          height: 72,
+          color: AppTheme.atelierSurfaceLow,
+          child: resultBytes != null
+              ? Image.memory(resultBytes, fit: BoxFit.cover)
+              : item.productImageUrl == null
+              ? Icon(statusIcon, color: statusColor)
+              : Image.network(
+                  item.productImageUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) =>
+                      Icon(statusIcon, color: statusColor),
+                ),
+        ),
+      ),
+      title: Text(
+        item.productName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text('$statusLabel | ${_formatTryOnTime(item.createdAt)}'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(statusIcon, color: statusColor),
+          IconButton(
+            onPressed: () => _savedTryOnService.deleteTryOn(item.sessionId),
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Remove',
+          ),
+        ],
+      ),
+      onTap: item.isCompleted && resultBytes != null
+          ? () => _showTryOnResult(item)
+          : null,
+    );
+  }
+
+  void _showTryOnResult(SavedTryOn item) {
+    final resultBytes = item.resultImageBytes;
+    if (resultBytes == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.productName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.68,
+                ),
+                child: Image.memory(resultBytes, fit: BoxFit.contain),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatTryOnTime(int milliseconds) {
+    final date = DateTime.fromMillisecondsSinceEpoch(milliseconds);
+    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+    return '${date.month}/${date.day} $hour:$minute $period';
+  }
+
   void _showPaymentMethodsSheet() {
     showModalBottomSheet(
       context: context,
@@ -853,6 +1056,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           description: 'View saved products',
                           onTap: () =>
                               widget.onNavigate?.call(AppScreen.wishlist),
+                        ),
+                        _buildMenuItem(
+                          icon: Icons.checkroom_outlined,
+                          label: 'Saved Try-ons',
+                          description: _tryOnHistorySummary,
+                          onTap: _showSavedTryOnsSheet,
                         ),
                         _buildMenuItem(
                           icon: Icons.rate_review_outlined,

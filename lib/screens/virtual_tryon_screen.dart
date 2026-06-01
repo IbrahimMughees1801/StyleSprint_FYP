@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 import '../models/product_photo.dart';
+import '../services/saved_tryon_service.dart';
 import '../services/supabase_products_service.dart';
 import '../services/virtual_tryon_service.dart';
 import '../theme/app_theme.dart';
@@ -32,6 +33,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   final ImagePicker _picker = ImagePicker();
   final SupabaseProductsService _productsService = SupabaseProductsService();
   final VirtualTryOnService _tryOnService = VirtualTryOnService();
+  final SavedTryOnService _savedTryOnService = SavedTryOnService.instance;
   List<ProductPhoto> _products = [];
   bool _isLoadingProducts = false;
   String? _productsError;
@@ -52,6 +54,42 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     super.initState();
     _loadAvailableCameras();
     _loadProducts();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showTryOnInstructions();
+    });
+  }
+
+  void _showTryOnInstructions() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Better Try-On Results'),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Stand straight and face the camera.'),
+              SizedBox(height: 8),
+              Text('Keep your arms relaxed and down.'),
+              SizedBox(height: 8),
+              Text('Use a clear full-body photo with good lighting.'),
+              SizedBox(height: 8),
+              Text('Avoid heavy shadows, mirrors, or cropped photos.'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Got it'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _loadProducts() async {
@@ -329,19 +367,30 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       final result = await _tryOnService.processBase64Images(
         personImageBytes: _capturedImageBytes!,
         clothImageBytes: clothResponse.bodyBytes,
+        productCategory: selectedProduct.category,
+        productType: selectedProduct.productType,
       );
 
       if (!result.success || result.sessionId.isEmpty) {
         throw Exception(result.message);
       }
 
-      final resultBytes = await _tryOnService.getResultImage(result.sessionId);
-      if (!mounted) return;
+      await _savedTryOnService.addProcessingTryOn(
+        sessionId: result.sessionId,
+        productName: selectedProduct.name,
+        productImageUrl: selectedProduct.tryOnImageUrl,
+      );
 
+      if (!mounted) return;
       setState(() {
-        _resultImageBytes = resultBytes;
         _isProcessingTryOn = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Try-on is processing in the background.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -921,15 +970,17 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   }
 
   Widget _buildCameraView() {
+    final isLiveCamera =
+        _cameraController != null && _cameraController!.value.isInitialized;
+
     return Stack(
       fit: StackFit.expand,
       children: [
         if (_resultImageBytes != null)
-          Image.memory(_resultImageBytes!, fit: BoxFit.cover)
+          _buildFittedTryOnImage(_resultImageBytes!)
         else if (_capturedImageBytes != null)
-          Image.memory(_capturedImageBytes!, fit: BoxFit.cover)
-        else if (_cameraController != null &&
-            _cameraController!.value.isInitialized)
+          _buildFittedTryOnImage(_capturedImageBytes!)
+        else if (isLiveCamera)
           CameraPreview(_cameraController!)
         else
           Container(
@@ -950,20 +1001,21 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                     ),
             ),
           ),
-        Center(
-          child: Container(
-            width: 256,
-            height: 384,
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.3),
-                width: 2,
+        if (isLiveCamera)
+          Center(
+            child: Container(
+              width: 256,
+              height: 384,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(24),
               ),
-              borderRadius: BorderRadius.circular(24),
             ),
           ),
-        ),
-        if (_cameraController != null && _cameraController!.value.isInitialized)
+        if (isLiveCamera)
           Positioned(
             left: 0,
             right: 0,
@@ -988,7 +1040,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
               ),
             ),
           ),
-        if (_cameraController != null && _cameraController!.value.isInitialized)
+        if (isLiveCamera)
           Positioned(
             right: 20,
             bottom: 68,
@@ -1000,6 +1052,40 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildFittedTryOnImage(Uint8List imageBytes) {
+    return Container(
+      color: _atelierBg,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.memory(
+            imageBytes,
+            fit: BoxFit.cover,
+            color: Colors.black.withValues(alpha: 0.48),
+            colorBlendMode: BlendMode.darken,
+          ),
+          Container(color: _atelierBg.withValues(alpha: 0.42)),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 82, 12, 178),
+              child: Center(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Image.memory(
+                    imageBytes,
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

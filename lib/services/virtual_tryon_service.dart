@@ -5,10 +5,25 @@ import 'package:uuid/uuid.dart';
 import '../models/tryon_result.dart';
 
 class VirtualTryOnService {
+  static const String _configuredBaseUrl = String.fromEnvironment(
+    'TRYON_API_BASE_URL',
+  );
+
   // Update this to your backend server URL
-  // For local development: http://localhost:8000
+  // Android emulator reaches the host machine through 10.0.2.2.
   // For production: https://your-backend-domain.com
-  static const String baseUrl = 'http://127.0.0.1:8000';
+  static String get baseUrl {
+    final configured = _configuredBaseUrl.trim();
+    if (configured.isNotEmpty) {
+      return configured.endsWith('/')
+          ? configured.substring(0, configured.length - 1)
+          : configured;
+    }
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:8000';
+    }
+    return 'http://127.0.0.1:8000';
+  }
 
   final http.Client _client = http.Client();
   final _uuid = const Uuid();
@@ -17,6 +32,8 @@ class VirtualTryOnService {
   Future<TryOnResult> processBase64Images({
     required Uint8List personImageBytes,
     required Uint8List clothImageBytes,
+    String? productCategory,
+    String? productType,
   }) async {
     try {
       final sessionId = _uuid.v4();
@@ -32,6 +49,10 @@ class VirtualTryOnService {
           'session_id': sessionId,
           'person_image_base64': personBase64,
           'cloth_image_base64': clothBase64,
+          if (productCategory != null && productCategory.trim().isNotEmpty)
+            'product_category': productCategory,
+          if (productType != null && productType.trim().isNotEmpty)
+            'product_type': productType,
         }),
       );
 
