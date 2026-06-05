@@ -6,9 +6,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import torch
-
-from ultralytics import YOLO
 
 
 class FastSAMInference:
@@ -33,7 +30,11 @@ class FastSAMInference:
         if image is None:
             raise FileNotFoundError(f"Unable to read image: {self.image_path}")
 
+        import torch
+
         device = "cuda" if torch.cuda.is_available() else "cpu"
+        from ultralytics import YOLO
+
         model = YOLO(str(self.model_path))
         imgsz = int(os.getenv("API_FASTSAM_IMGSZ", "1024"))
         conf = float(os.getenv("API_FASTSAM_CONF", "0.25"))

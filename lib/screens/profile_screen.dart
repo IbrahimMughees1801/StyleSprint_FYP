@@ -99,13 +99,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final processing = _savedTryOnService.processingCount;
     final completed = _savedTryOnService.completedCount;
     if (processing > 0 && completed > 0) {
-      return '$processing processing, $completed saved';
+      return '$completed ready, $processing processing';
+    }
+    if (completed > 0) {
+      return '$completed ready ${completed == 1 ? 'try-on' : 'try-ons'}';
     }
     if (processing > 0) {
       return '$processing processing in background';
-    }
-    if (completed > 0) {
-      return '$completed completed ${completed == 1 ? 'try-on' : 'try-ons'}';
     }
     return 'View completed virtual try-ons';
   }
@@ -733,49 +733,104 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final statusLabel = item.isCompleted
         ? 'Ready'
         : item.isFailed
-        ? 'Failed'
+        ? 'Needs retry'
         : 'Processing';
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          width: 56,
-          height: 72,
-          color: AppTheme.atelierSurfaceLow,
-          child: resultBytes != null
-              ? Image.memory(resultBytes, fit: BoxFit.cover)
-              : item.productImageUrl == null
-              ? Icon(statusIcon, color: statusColor)
-              : Image.network(
-                  item.productImageUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) =>
-                      Icon(statusIcon, color: statusColor),
-                ),
-        ),
-      ),
-      title: Text(
-        item.productName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text('$statusLabel | ${_formatTryOnTime(item.createdAt)}'),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(statusIcon, color: statusColor),
-          IconButton(
-            onPressed: () => _savedTryOnService.deleteTryOn(item.sessionId),
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Remove',
-          ),
-        ],
-      ),
+    return InkWell(
       onTap: item.isCompleted && resultBytes != null
           ? () => _showTryOnResult(item)
           : null,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.45),
+          ),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 62,
+                height: 78,
+                color: AppTheme.atelierSurfaceLow,
+                child: resultBytes != null
+                    ? Image.memory(resultBytes, fit: BoxFit.cover)
+                    : item.productImageUrl == null
+                    ? Icon(statusIcon, color: statusColor)
+                    : Image.network(
+                        item.productImageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            Icon(statusIcon, color: statusColor),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.productName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _formatTryOnTime(item.createdAt),
+                    style: const TextStyle(
+                      color: AppTheme.gray500,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(statusIcon, color: statusColor, size: 15),
+                        const SizedBox(width: 5),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () => _savedTryOnService.deleteTryOn(item.sessionId),
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Remove',
+            ),
+            if (item.isCompleted && resultBytes != null)
+              const Icon(Icons.chevron_right, color: AppTheme.gray400),
+          ],
+        ),
+      ),
     );
   }
 
@@ -812,11 +867,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.68,
+                  maxHeight: MediaQuery.of(context).size.height * 0.62,
                 ),
                 child: Image.memory(resultBytes, fit: BoxFit.contain),
               ),
-              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.pop(this.context);
+                          widget.onNavigate?.call(AppScreen.tryon);
+                        },
+                        icon: const Icon(Icons.auto_awesome),
+                        label: const Text('Try another'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         );

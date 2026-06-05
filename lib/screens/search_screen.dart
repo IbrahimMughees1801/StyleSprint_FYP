@@ -382,8 +382,19 @@ class _SearchScreenState extends State<SearchScreen> {
                       imageUrl: product.imageUrl,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      placeholder: (context, url) =>
-                          Container(color: AppTheme.gray100),
+                      placeholder: (context, url) => Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              AppTheme.gray100,
+                              Color(0xFFF7F8FA),
+                              AppTheme.gray100,
+                            ],
+                          ),
+                        ),
+                      ),
                       errorWidget: (context, url, error) => Container(
                         color: AppTheme.gray100,
                         child: const Icon(Icons.image_not_supported_outlined),

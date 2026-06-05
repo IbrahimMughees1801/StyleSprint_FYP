@@ -134,7 +134,7 @@ class _AppNavigatorState extends State<AppNavigator> {
 
     scaffoldMessengerKey.currentState?.showSnackBar(
       SnackBar(
-        content: const Text('Your try-on is ready.'),
+        content: const Text('Your virtual try-on is ready.'),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'View',

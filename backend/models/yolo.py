@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 
 from PIL import Image
-from ultralytics import YOLO
 
 
 class YOLODetector:
@@ -37,6 +36,8 @@ class YOLODetector:
     }
 
     def __init__(self, weights_path: str, device: str = "cpu") -> None:
+        from ultralytics import YOLO
+
         self.weights_path = Path(weights_path)
         self.device = device
         self.model = YOLO(str(self.weights_path))

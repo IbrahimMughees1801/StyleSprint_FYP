@@ -167,10 +167,7 @@ class ProductCard extends StatelessWidget {
                   child: CachedNetworkImage(
                     imageUrl: product.imageUrl,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: const Color(0xFFE9EDFF),
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
+                    placeholder: (context, url) => const _ProductCardSkeleton(),
                     errorWidget: (context, url, error) => Container(
                       color: const Color(0xFFE9EDFF),
                       child: const Icon(Icons.image_not_supported_outlined),
@@ -273,6 +270,23 @@ class ProductCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProductCardSkeleton extends StatelessWidget {
+  const _ProductCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFE6E8F0), Color(0xFFF4F5F8), Color(0xFFE6E8F0)],
+        ),
       ),
     );
   }

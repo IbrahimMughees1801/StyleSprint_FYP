@@ -92,7 +92,19 @@ def pf_afn_fit_metrics(session_id: str, sleeve_arm_ratio: float | None = None) -
     }
 
 
-def verdicts(report: dict[str, Any], fit: dict[str, Any]) -> list[dict[str, str]]:
+def garment_guardrail_metrics(session_id: str) -> dict[str, Any]:
+    path = DEBUG_DIR / f"{session_id}_garment_guardrail.json"
+    if not path.exists():
+        return {"available": False}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {"available": False, "error": str(exc)}
+    payload["available"] = True
+    return payload
+
+
+def verdicts(report: dict[str, Any], fit: dict[str, Any], guardrail: dict[str, Any] | None = None) -> list[dict[str, str]]:
     artifacts = report["artifacts"]
     rows: list[dict[str, str]] = []
 
@@ -266,6 +278,36 @@ def verdicts(report: dict[str, Any], fit: dict[str, Any]) -> list[dict[str, str]
             "visible failure likely follows weak warped garment shape"
         )
     add("DCI-VTON diffusion", dci_score, dci_verdict, dci_note)
+    guardrail = guardrail or {}
+    if guardrail.get("available") and guardrail.get("applied"):
+        changed_area = float(guardrail.get("changed_area_ratio") or 0)
+        alpha_mean = float(guardrail.get("alpha_mean") or 0)
+        if 0.01 <= changed_area <= 0.38 and alpha_mean <= 0.16:
+            guardrail_score = "82/100"
+            guardrail_verdict = "active"
+        elif changed_area > 0:
+            guardrail_score = "68/100"
+            guardrail_verdict = "watch"
+        else:
+            guardrail_score = "50/100"
+            guardrail_verdict = "inactive"
+        add(
+            "Garment identity guardrail",
+            guardrail_score,
+            guardrail_verdict,
+            (
+                f"changed_area={guardrail.get('changed_area_ratio')}, "
+                f"alpha_mean={guardrail.get('alpha_mean')}, alpha_max={guardrail.get('alpha_max')}, "
+                f"old_residue={guardrail.get('old_residue_area_ratio')}"
+            ),
+        )
+    elif guardrail.get("available"):
+        add(
+            "Garment identity guardrail",
+            "50/100",
+            "inactive",
+            f"not applied: {guardrail.get('reason')}",
+        )
     return rows
 
 
@@ -282,8 +324,9 @@ def main() -> int:
 
     report = grade_session(args.session_id)
     fit = pf_afn_fit_metrics(args.session_id, args.sleeve_arm_ratio)
-    rows = verdicts(report, fit)
-    payload = {"session_id": args.session_id, "fit_metrics": fit, "models": rows}
+    guardrail = garment_guardrail_metrics(args.session_id)
+    rows = verdicts(report, fit, guardrail)
+    payload = {"session_id": args.session_id, "fit_metrics": fit, "guardrail": guardrail, "models": rows}
 
     DEBUG_DIR.mkdir(parents=True, exist_ok=True)
     output = DEBUG_DIR / f"{args.session_id}_model_audit.json"

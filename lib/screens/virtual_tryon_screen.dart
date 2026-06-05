@@ -67,24 +67,53 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: const Text('Better Try-On Results'),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          title: const Row(
             children: [
-              Text('Stand straight and face the camera.'),
-              SizedBox(height: 8),
-              Text('Keep your arms relaxed and down.'),
-              SizedBox(height: 8),
-              Text('Use a clear full-body photo with good lighting.'),
-              SizedBox(height: 8),
-              Text('Avoid heavy shadows, mirrors, or cropped photos.'),
+              Icon(Icons.accessibility_new, color: _atelierBg),
+              SizedBox(width: 10),
+              Expanded(child: Text('For Best Results')),
             ],
           ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _TryOnInstructionRow(
+                icon: Icons.straighten,
+                text: 'Stand straight and face the camera.',
+              ),
+              SizedBox(height: 12),
+              _TryOnInstructionRow(
+                icon: Icons.pan_tool_alt_outlined,
+                text: 'Keep your arms relaxed and down.',
+              ),
+              SizedBox(height: 12),
+              _TryOnInstructionRow(
+                icon: Icons.fullscreen,
+                text: 'Use a clear full-body photo.',
+              ),
+              SizedBox(height: 12),
+              _TryOnInstructionRow(
+                icon: Icons.light_mode_outlined,
+                text: 'Choose good lighting and avoid shadows.',
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Got it'),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _atelierBg,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text('Got it'),
+              ),
             ),
           ],
         );
@@ -387,18 +416,21 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Try-on is processing in the background.'),
+          content: Text('Creating your virtual try-on. You can keep browsing.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
+      debugPrint('Try-on start failed: $e');
       if (!mounted) return;
       setState(() {
         _isProcessingTryOn = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Try-on failed: $e'),
+        const SnackBar(
+          content: Text(
+            'Try-on could not start. Check your connection and try again.',
+          ),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
@@ -877,6 +909,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                                     CachedNetworkImage(
                                       imageUrl: product.tryOnImageUrl,
                                       fit: BoxFit.cover,
+                                      placeholder: (context, url) =>
+                                          const _ProductImageSkeleton(),
+                                      errorWidget: (context, url, error) =>
+                                          const _ProductImageFallback(),
                                     ),
                                     if (selected)
                                       Positioned(
@@ -1170,13 +1206,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                   SizedBox(
                     height: 80,
                     child: _isLoadingProducts
-                        ? const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
+                        ? const _CompactProductSkeletonRow()
                         : _products.isEmpty
                         ? const Center(
                             child: Text(
@@ -1222,6 +1252,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                                       child: CachedNetworkImage(
                                         imageUrl: product.imageUrl,
                                         fit: BoxFit.cover,
+                                        placeholder: (context, url) =>
+                                            const _ProductImageSkeleton(),
+                                        errorWidget: (context, url, error) =>
+                                            const _ProductImageFallback(),
                                       ),
                                     ),
                                   ),
@@ -1388,6 +1422,81 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _TryOnInstructionRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _TryOnInstructionRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: AppTheme.atelierMidnight),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, style: const TextStyle(height: 1.25))),
+      ],
+    );
+  }
+}
+
+class _ProductImageSkeleton extends StatelessWidget {
+  const _ProductImageSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: 0.08),
+            Colors.white.withValues(alpha: 0.18),
+            Colors.white.withValues(alpha: 0.08),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductImageFallback extends StatelessWidget {
+  const _ProductImageFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white.withValues(alpha: 0.08),
+      child: const Icon(
+        Icons.image_not_supported_outlined,
+        color: AppTheme.gray400,
+      ),
+    );
+  }
+}
+
+class _CompactProductSkeletonRow extends StatelessWidget {
+  const _CompactProductSkeletonRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 4,
+      separatorBuilder: (context, index) => const SizedBox(width: 12),
+      itemBuilder: (context, index) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: const SizedBox(width: 80, child: _ProductImageSkeleton()),
+        );
+      },
     );
   }
 }

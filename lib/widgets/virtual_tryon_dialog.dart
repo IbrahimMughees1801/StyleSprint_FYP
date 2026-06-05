@@ -117,14 +117,16 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
       Navigator.pop(context);
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Try-on is processing in the background.'),
+          content: Text('Creating your virtual try-on. You can keep browsing.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
+      debugPrint('Try-on dialog start failed: $e');
       if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage =
+            'Try-on could not start. Check your connection and try again.';
         _isProcessing = false;
       });
     }
@@ -259,7 +261,7 @@ class _VirtualTryOnDialogState extends State<VirtualTryOnDialog> {
             const CircularProgressIndicator(),
             const SizedBox(height: 24),
             const Text(
-              'Processing your try-on...',
+              'Creating your virtual try-on...',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 8),

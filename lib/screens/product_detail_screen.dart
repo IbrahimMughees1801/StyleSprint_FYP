@@ -298,8 +298,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           child: CachedNetworkImage(
                             imageUrl: selectedImageUrl,
                             fit: BoxFit.contain,
-                            placeholder: (context, url) =>
-                                Container(color: _surfaceLow(context)),
+                            placeholder: (context, url) => Container(
+                              decoration: BoxDecoration(
+                                color: _surfaceLow(context),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    _surfaceLow(context),
+                                    Theme.of(context).colorScheme.surface,
+                                    _surfaceLow(context),
+                                  ],
+                                ),
+                              ),
+                            ),
                             errorWidget: (context, url, error) => Container(
                               color: _surfaceLow(context),
                               child: const Icon(
@@ -339,6 +351,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                         product,
                                       ),
                                       productName: product.name,
+                                      productCategory: product.category,
+                                      productType: product.productType,
                                     ),
                                   );
                                 },

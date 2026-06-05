@@ -50,6 +50,7 @@ migrate_working_dir/
 /backend/*.jpeg
 /backend/*.png
 /run_tryon_stage3_demo.py
+/runs/
 
 # Generated/alternate app drafts
 /Lenzo/
